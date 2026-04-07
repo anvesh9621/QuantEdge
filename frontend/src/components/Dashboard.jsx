@@ -109,6 +109,7 @@ export default function Dashboard() {
   const [history, setHistory] = useState([])
   const [prediction, setPrediction] = useState(null)
   const [fundamentals, setFundamentals] = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(null)
   
   const [loading, setLoading] = useState(true)
   const [chartType, setChartType] = useState('area')
@@ -130,11 +131,29 @@ export default function Dashboard() {
       setHistory(Array.isArray(hist) ? hist : [])
       setPrediction(pred)
       setFundamentals(fund)
+      setLastUpdated(new Date())
       setLoading(false)
     }).catch(err => {
       console.error(err)
       setLoading(false)
     })
+  }, [selected])
+
+  // Live price polling — silently refreshes only fundamentals (current price) every 30s
+  useEffect(() => {
+    if (!selected) return
+    const interval = setInterval(() => {
+      fetch(`${API}/api/fundamentals/${selected}`)
+        .then(r => r.json())
+        .then(fund => {
+          if (fund && !fund.detail) {
+            setFundamentals(fund)
+            setLastUpdated(new Date())
+          }
+        })
+        .catch(() => {}) // Silently fail — don't disrupt UI on poll error
+    }, 30000) // Every 30 seconds
+    return () => clearInterval(interval)
   }, [selected])
 
   if (loading && history.length === 0) {
@@ -203,6 +222,14 @@ export default function Dashboard() {
               <div className={`price-change ${isUp ? 'up' : 'down'}`}>
                 {isUp ? '▲' : '▼'} {Math.abs(dayChange).toFixed(2)} ({Math.abs(dayChangePct).toFixed(2)}%) <span style={{marginLeft: 4, fontWeight: 500, color: 'var(--text-secondary)'}}>today</span>
               </div>
+              {lastUpdated && (
+                <div style={{display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, justifyContent: 'flex-end'}}>
+                  <span className="live-dot" />
+                  <span style={{fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)'}}>
+                    LIVE · {lastUpdated.toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit', second: '2-digit'})}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </header>
