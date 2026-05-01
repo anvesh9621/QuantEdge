@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createChart } from 'lightweight-charts'
 
-const API = 'http://localhost:8000'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 // ── CHART (TradingView lightweight-charts v4) ──────────────────────────────
 function AdvancedChart({ data, type, timeframe }) {
@@ -44,7 +44,7 @@ function AdvancedChart({ data, type, timeframe }) {
       .sort((a, b) => (a.time > b.time ? 1 : -1))
       .filter(d => { if (seen.has(d.time)) return false; seen.add(d.time); return true })
       .map(d => ({ time: d.time, open: +d.open, high: +d.high, low: +d.low, close: +d.close }))
-      
+
     if (clean.length === 0) return
 
     const lastPrice = clean[clean.length - 1].close
@@ -77,7 +77,7 @@ function AdvancedChart({ data, type, timeframe }) {
     } else {
       const daysStr = timeframe.replace('M', '*30').replace('Y', '*365')
       const days = eval(daysStr)
-      
+
       const toIndex = clean.length - 1
       const fromIndex = Math.max(0, toIndex - days)
       chartRef.current.timeScale().setVisibleLogicalRange({ from: fromIndex, to: toIndex })
@@ -110,7 +110,7 @@ export default function Dashboard() {
   const [prediction, setPrediction] = useState(null)
   const [fundamentals, setFundamentals] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
-  
+
   const [loading, setLoading] = useState(true)
   const [chartType, setChartType] = useState('area')
   const [timeframe, setTimeframe] = useState('1Y')
@@ -151,7 +151,7 @@ export default function Dashboard() {
             setLastUpdated(new Date())
           }
         })
-        .catch(() => {}) // Silently fail — don't disrupt UI on poll error
+        .catch(() => { }) // Silently fail — don't disrupt UI on poll error
     }, 30000) // Every 30 seconds
     return () => clearInterval(interval)
   }, [selected])
@@ -178,7 +178,7 @@ export default function Dashboard() {
     let prevClose = displayPrice
     for (let i = history.length - 2; i >= 0; i--) {
       if (history[i].time !== history[history.length - 1].time) {
-         prevClose = history[i].close; break;
+        prevClose = history[i].close; break;
       }
     }
     dayChange = displayPrice - prevClose
@@ -186,7 +186,7 @@ export default function Dashboard() {
   }
 
   const isUp = dayChange >= 0
-  
+
   const hasModel = prediction && !prediction.detail && !prediction.error
   const pPrice = hasModel ? prediction.predicted_price : null
   const pReturn = hasModel ? prediction.predicted_return_pct : null
@@ -197,8 +197,8 @@ export default function Dashboard() {
       {/* ── LEFT SIDEBAR ── */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1>Quant<span style={{color: 'var(--color-up)'}}>Edge</span></h1>
-          <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4, letterSpacing: 1}}>QUANTITATIVE RESEARCH</div>
+          <h1>Quant<span style={{ color: 'var(--color-up)' }}>Edge</span></h1>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4, letterSpacing: 1 }}>QUANTITATIVE RESEARCH</div>
         </div>
         <div className="stock-list">
           {stocks.map(sym => (
@@ -214,19 +214,19 @@ export default function Dashboard() {
         <header className="hud-header">
           <div>
             <div className="ticker-title">{selected}</div>
-            <div style={{color: 'var(--text-secondary)', letterSpacing: 1}}>{fundamentals?.sector || 'Nifty 50'} · {fundamentals?.industry || 'Indian Market'}</div>
+            <div style={{ color: 'var(--text-secondary)', letterSpacing: 1 }}>{fundamentals?.sector || 'Nifty 50'} · {fundamentals?.industry || 'Indian Market'}</div>
           </div>
           {displayPrice > 0 && (
             <div className="live-price-container">
               <div className="live-price">₹{displayPrice.toFixed(2)}</div>
               <div className={`price-change ${isUp ? 'up' : 'down'}`}>
-                {isUp ? '▲' : '▼'} {Math.abs(dayChange).toFixed(2)} ({Math.abs(dayChangePct).toFixed(2)}%) <span style={{marginLeft: 4, fontWeight: 500, color: 'var(--text-secondary)'}}>today</span>
+                {isUp ? '▲' : '▼'} {Math.abs(dayChange).toFixed(2)} ({Math.abs(dayChangePct).toFixed(2)}%) <span style={{ marginLeft: 4, fontWeight: 500, color: 'var(--text-secondary)' }}>today</span>
               </div>
               {lastUpdated && (
-                <div style={{display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, justifyContent: 'flex-end'}}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, justifyContent: 'flex-end' }}>
                   <span className="live-dot" />
-                  <span style={{fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)'}}>
-                    LIVE · {lastUpdated.toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit', second: '2-digit'})}
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    LIVE · {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </span>
                 </div>
               )}
@@ -236,7 +236,7 @@ export default function Dashboard() {
 
         <div className="panel-grid">
           {/* LEFT: Chart & Stats */}
-          <div style={{display: 'flex', flexDirection: 'column', gap: 24}}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             <div className="panel">
               <div className="chart-toolbar">
                 <div className="timeframe-btns">
@@ -257,7 +257,7 @@ export default function Dashboard() {
             {/* Fundamentals Stats */}
             <div className="panel">
               <div className="panel-title">Key Statistics</div>
-              <div className="stats-grid" style={{marginTop: 0}}>
+              <div className="stats-grid" style={{ marginTop: 0 }}>
                 <div className="stat-card">
                   <div className="stat-label">Market Cap</div>
                   <div className="stat-val">{fundamentals?.market_cap ? `₹${(fundamentals.market_cap / 10000000000).toFixed(2)}T` : '—'}</div>
@@ -297,9 +297,9 @@ export default function Dashboard() {
           {/* RIGHT: HUD Panel */}
           <div className="panel">
             <div className="panel-title">Market Signal</div>
-            
+
             {loading ? (
-              <div style={{padding: '40px 0'}}>
+              <div style={{ padding: '40px 0' }}>
                 <Spinner />
               </div>
             ) : hasModel ? (
@@ -308,7 +308,7 @@ export default function Dashboard() {
                   <div className={`decision-badge ${prediction.decision}`}>
                     {prediction.decision}
                   </div>
-                  <div style={{color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: 8}}>NEXT DAY FORECAST</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: 8 }}>NEXT DAY FORECAST</div>
                   <div className="pred-price-display">
                     <div className="pred-price">₹{pPrice.toFixed(2)}</div>
                     <div className={`price-change ${pUp ? 'up' : 'down'}`}>
@@ -317,27 +317,27 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="stats-grid" style={{gridTemplateColumns: '1fr 1fr', marginBottom: 24}}>
+                <div className="stats-grid" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 24 }}>
                   <div className="stat-card">
                     <div className="stat-label">Confidence Level</div>
-                    <div className="stat-val" style={{color: prediction.decision === 'HOLD' ? 'var(--color-hold)' : (prediction.decision === 'BUY' ? 'var(--color-up)' : 'var(--color-down)')}}>
+                    <div className="stat-val" style={{ color: prediction.decision === 'HOLD' ? 'var(--color-hold)' : (prediction.decision === 'BUY' ? 'var(--color-up)' : 'var(--color-down)') }}>
                       {(prediction.confidence * 100).toFixed(1)}%
                     </div>
                   </div>
                   <div className="stat-card">
                     <div className="stat-label">Trend Strength</div>
-                    <div className="stat-val" style={{color: prediction.signal_strength_up >= 0.5 ? 'var(--color-up)' : 'var(--color-down)'}}>
-                      {prediction.signal_strength_up >= 0.5 ? '▲ ' : '▼ '} 
+                    <div className="stat-val" style={{ color: prediction.signal_strength_up >= 0.5 ? 'var(--color-up)' : 'var(--color-down)' }}>
+                      {prediction.signal_strength_up >= 0.5 ? '▲ ' : '▼ '}
                       {prediction.signal_strength_up >= 0.5 ? (prediction.signal_strength_up * 100).toFixed(1) : ((1 - prediction.signal_strength_up) * 100).toFixed(1)}%
                     </div>
                   </div>
                   <div className="stat-card">
                     <div className="stat-label">Market Sentiment</div>
-                    <div className="stat-val" style={{color: 'var(--color-up)'}}>{prediction.market_sentiment}</div>
+                    <div className="stat-val" style={{ color: 'var(--color-up)' }}>{prediction.market_sentiment}</div>
                   </div>
                   <div className="stat-card">
                     <div className="stat-label">Risk Level</div>
-                    <div className="stat-val" style={{color: prediction.risk === 'HIGH' ? 'var(--color-down)' : 'var(--text-primary)'}}>{prediction.risk}</div>
+                    <div className="stat-val" style={{ color: prediction.risk === 'HIGH' ? 'var(--color-down)' : 'var(--text-primary)' }}>{prediction.risk}</div>
                   </div>
                 </div>
 
@@ -350,8 +350,8 @@ export default function Dashboard() {
               </>
             ) : (
               <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '40px 20px', lineHeight: 1.6 }}>
-                 <div style={{ fontSize: '2rem', marginBottom: '16px' }}>⚙️</div>
-                 The predictive algorithms for {selected} are currently initializing. Please wait 1-2 minutes and refresh.
+                <div style={{ fontSize: '2rem', marginBottom: '16px' }}>⚙️</div>
+                The predictive algorithms for {selected} are currently initializing. Please wait 1-2 minutes and refresh.
               </div>
             )}
           </div>
@@ -359,9 +359,9 @@ export default function Dashboard() {
       </main>
 
       {loading && history.length > 0 && (
-         <div style={{position: 'fixed', top: 20, right: 20, background: 'var(--color-up)', color: '#000', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600}}>
-           UPDATING...
-         </div>
+        <div style={{ position: 'fixed', top: 20, right: 20, background: 'var(--color-up)', color: '#000', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+          UPDATING...
+        </div>
       )}
     </div>
   )

@@ -1,0 +1,28 @@
+services:
+  # ── BACKEND (FastAPI) ──
+  - type: web
+    name: quantedge-backend
+    env: python
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn app.main:app --host 0.0.0.0 --port 10000"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      # You will paste your Neon.tech DATABASE_URL in the Render Dashboard securely!
+      
+  # ── FRONTEND (React / Vite) ──
+  - type: web
+    name: quantedge-frontend
+    env: static
+    buildCommand: "cd frontend && npm install && npm run build"
+    staticPublishPath: "./frontend/dist"
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: quantedge-backend
+          envVarKey: RENDER_EXTERNAL_URL
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
