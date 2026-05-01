@@ -33,13 +33,14 @@ def get_stock_history(ticker: str, db: Session = Depends(get_db)):
     } for d in data]
 
 @router.get("/predict/{ticker}")
-def predict_stock(ticker: str, db: Session = Depends(get_db)):
+def predict_stock(ticker: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Generates a decision support prediction for a stock using the trained model."""
     try:
         res = make_prediction(ticker_symbol=ticker, model_type='rf')
         
         if "error" in res:
-            # Model might not be trained. Let's trigger a background training just in case!
+            # Model might not be trained. Trigger background training!
+            background_tasks.add_task(train_model, ticker, 'rf')
             raise HTTPException(status_code=400, detail=res["error"])
             
         # Save to Prediction History

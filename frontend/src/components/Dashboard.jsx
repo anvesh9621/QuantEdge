@@ -15,8 +15,7 @@ function AdvancedChart({ data, type, timeframe }) {
 
     if (!chartRef.current) {
       const chart = createChart(ref.current, {
-        width: ref.current.clientWidth,
-        height: ref.current.clientHeight || 450,
+        autoSize: true,
         layout: { background: { color: 'transparent' }, textColor: '#8b95a5' },
         grid: { vertLines: { color: 'rgba(42,49,66,0.3)' }, horzLines: { color: 'rgba(42,49,66,0.3)' } },
         crosshair: { mode: 1 },
@@ -25,12 +24,7 @@ function AdvancedChart({ data, type, timeframe }) {
       })
       chartRef.current = chart
 
-      const handleResize = () => {
-        if (ref.current && chartRef.current) {
-          chartRef.current.resize(ref.current.clientWidth, ref.current.clientHeight || 450)
-        }
-      }
-      window.addEventListener('resize', handleResize)
+
     }
 
     // Remove old series if type changed
@@ -124,8 +118,8 @@ export default function Dashboard() {
     setLoading(true)
 
     Promise.all([
-      fetch(`${API}/api/history/${selected}`).then(r => r.json()),
-      fetch(`${API}/api/predict/${selected}`).then(r => r.json()),
+      fetch(`${API}/api/history/${selected}`).then(r => r.json()).catch(() => []),
+      fetch(`${API}/api/predict/${selected}`).then(r => r.json()).catch(() => ({error: "Prediction API failed."})),
       fetch(`${API}/api/fundamentals/${selected}`).then(r => r.json()).catch(() => null)
     ]).then(([hist, pred, fund]) => {
       setHistory(Array.isArray(hist) ? hist : [])
