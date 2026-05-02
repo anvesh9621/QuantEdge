@@ -5,10 +5,10 @@ from app.database.db import engine
 from sqlalchemy import text
 from app.ml.features import calculate_features
 
-def get_or_update_stock_data(ticker_symbol: str) -> pd.DataFrame:
+def get_or_update_stock_data(ticker_symbol: str, skip_update: bool = False) -> pd.DataFrame:
     """
     Fetches raw stock data from DB for ticker. 
-    If data is stale (missing days up to today), it backfills using yfinance.
+    If data is stale (missing days up to today) and skip_update is False, it backfills using yfinance.
     """
     query = text("SELECT date, open, high, low, close, volume FROM stock_data WHERE ticker = :ticker ORDER BY date ASC")
     df = pd.read_sql(query, engine, params={"ticker": ticker_symbol})
@@ -21,20 +21,20 @@ def get_or_update_stock_data(ticker_symbol: str) -> pd.DataFrame:
     
     today = datetime.today()
     
-    if df.empty:
-        # If absolutely no history, fetch last 5 years
-        start_date = (today - timedelta(days=1825)).strftime('%Y-%m-%d')
-        new_data = yf.download(yf_ticker, start=start_date, progress=False)
-    else:
-        max_date = df['date'].max()
-        # If the gap is more than 1 day (ignoring weekends) we try to fetch missing
-        if (today - max_date).days >= 1:
-            # We fetch starting from max_date + 1 day
-            start_date = (max_date + timedelta(days=1)).strftime('%Y-%m-%d')
-            end_date = (today + timedelta(days=1)).strftime('%Y-%m-%d')
-            new_data = yf.download(yf_ticker, start=start_date, end=end_date, progress=False)
+    new_data = pd.DataFrame()
+    if not skip_update:
+        if df.empty:
+            # If absolutely no history, fetch last 5 years
+            start_date = (today - timedelta(days=1825)).strftime('%Y-%m-%d')
+            new_data = yf.download(yf_ticker, start=start_date, progress=False)
         else:
-            new_data = pd.DataFrame()
+            max_date = df['date'].max()
+            # If the gap is more than 1 day (ignoring weekends) we try to fetch missing
+            if (today - max_date).days >= 1:
+                # We fetch starting from max_date + 1 day
+                start_date = (max_date + timedelta(days=1)).strftime('%Y-%m-%d')
+                end_date = (today + timedelta(days=1)).strftime('%Y-%m-%d')
+                new_data = yf.download(yf_ticker, start=start_date, end=end_date, progress=False)
             
     if not new_data.empty:
         new_data = new_data.reset_index()
@@ -66,11 +66,11 @@ def get_or_update_stock_data(ticker_symbol: str) -> pd.DataFrame:
         
     return df
 
-def get_processed_stock_data(ticker_symbol: str, for_training=True) -> pd.DataFrame:
+def get_processed_stock_data(ticker_symbol: str, for_training=True, skip_update=False) -> pd.DataFrame:
     """
     Returns a clean DataFrame full of indicators ready for ML training or prediction.
     """
-    df = get_or_update_stock_data(ticker_symbol)
+    df = get_or_update_stock_data(ticker_symbol, skip_update=skip_update)
     if df.empty:
         raise ValueError(f"No data available for ticker {ticker_symbol}")
     

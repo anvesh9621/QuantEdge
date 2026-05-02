@@ -55,7 +55,7 @@ def make_prediction(ticker_symbol: str, model_type='rf'):
     classifier = joblib.load(class_model_path)
     regressor = joblib.load(reg_model_path)
 
-    df = get_processed_stock_data(ticker_symbol, for_training=False)
+    df = get_processed_stock_data(ticker_symbol, for_training=False, skip_update=True)
 
     if df.empty:
         return {"error": "No data available", "decision": "HOLD"}
