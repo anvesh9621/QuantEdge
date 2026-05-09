@@ -57,7 +57,7 @@ def train_model(ticker_symbol: str, model_type='rf'):
     
     reg_pred = regressor.predict(X_test)
     mae = mean_absolute_error(y_reg_test, reg_pred)
-    print(f"[{ticker_symbol}] Regression MAE: ₹{mae:.2f}")
+    print(f"[{ticker_symbol}] Regression MAE: INR {mae:.2f}")
     
     reg_model_path = os.path.join(MODELS_DIR, f"{ticker_symbol}_{model_type}_reg.pkl")
     if os.path.exists(reg_model_path): os.remove(reg_model_path) # Auto-delete old huge models

@@ -21,16 +21,20 @@ def get_available_stocks(db: Session = Depends(get_db)):
 def get_stock_history(ticker: str, db: Session = Depends(get_db)):
     """Returns historical raw data for the TradingView chart (last 1000 days)."""
     data = db.query(StockData).filter(StockData.ticker == ticker).order_by(StockData.date.desc()).limit(1000).all()
-    # TradingView lightweight charts expect chronological order
-    data = list(reversed(data))
+    
+    unique_data = {}
+    for d in data:
+        unique_data[d.date.strftime("%Y-%m-%d")] = d
+        
+    sorted_dates = sorted(unique_data.keys())
     return [{
-        "time": d.date.strftime("%Y-%m-%d"),
-        "open": round(d.open, 2),
-        "high": round(d.high, 2),
-        "low": round(d.low, 2),
-        "close": round(d.close, 2),
-        "volume": d.volume
-    } for d in data]
+        "time": date_str,
+        "open": round(unique_data[date_str].open, 2),
+        "high": round(unique_data[date_str].high, 2),
+        "low": round(unique_data[date_str].low, 2),
+        "close": round(unique_data[date_str].close, 2),
+        "volume": unique_data[date_str].volume
+    } for date_str in sorted_dates]
 
 @router.get("/predict/{ticker}")
 def predict_stock(ticker: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
@@ -41,7 +45,7 @@ def predict_stock(ticker: str, background_tasks: BackgroundTasks, db: Session = 
         if "error" in res:
             # Model might not be trained. Trigger background training!
             background_tasks.add_task(train_model, ticker, 'rf')
-            raise HTTPException(status_code=400, detail=res["error"])
+            return res
             
         # Save to Prediction History
         history = PredictionHistory(

@@ -9,6 +9,8 @@ load_dotenv()
 # Use SQLite as a fallback if DATABASE_URL is not provided
 # For PostgreSQL the url format is: postgresql://user:password@localhost/dbname
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./stock_market.db")
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # create_engine expects special arguments for SQLite
 if DATABASE_URL.startswith("sqlite"):
