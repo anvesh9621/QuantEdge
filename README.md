@@ -9,7 +9,7 @@
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://neon.tech/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgAdmin-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.pgadmin.org/)
 [![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-ML-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
@@ -39,7 +39,7 @@ The system uses two independent AI models working in tandem — a **Random Fores
 | 💬 **Explainable AI** | Every signal comes with a human-readable reasoning breakdown |
 | 🌡️ **Market Sentiment** | Custom gauge from Extreme Fear → Extreme Greed |
 | 🔄 **Auto-Training** | Background model training triggers automatically on first request |
-| 💾 **PostgreSQL Persistence** | 235,000+ rows of historical NIFTY 50 data stored in Neon.tech |
+| 💾 **PostgreSQL Persistence** | 235,000+ rows of historical NIFTY 50 data stored in a local pgAdmin PostgreSQL database |
 | 🎨 **Dark HUD Interface** | Deep-space themed professional UI with real-time animated indicators |
 
 ---
@@ -61,7 +61,7 @@ The system uses two independent AI models working in tandem — a **Random Fores
 │  Key Components:               │  │ ├──────┤ │               │  │
 │  • AdvancedChart               │  │ │  RF  │ │ ┌───────────┐ │  │
 │  • Dashboard                   │  │ │ Reg  │ │ │ PostgreSQL│ │  │
-│  • Sidebar (50 tickers)        │  │ └──────┘ │ │ (Neon.tech│ │  │
+│  • Sidebar (50 tickers)        │  │ └──────┘ │ │ (pgAdmin) │ │  │
 │                                │  └──────────┘ └───────────┘ │  │
 │                                └──────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
@@ -92,7 +92,7 @@ The system uses two independent AI models working in tandem — a **Random Fores
 ### Database & Infrastructure
 | Technology | Purpose |
 |---|---|
-| **PostgreSQL (Neon.tech)** | Serverless cloud database with 235k+ stock records |
+| **PostgreSQL (pgAdmin)** | Local PostgreSQL database with 235k+ stock records |
 | **Python-dotenv** | Environment variable management |
 
 ---
@@ -136,7 +136,7 @@ Otherwise    → HOLD  🟡
 ### Prerequisites
 - Python 3.12+
 - Node.js 18+
-- PostgreSQL database (local or [Neon.tech](https://neon.tech) free tier)
+- PostgreSQL database — install [pgAdmin](https://www.pgadmin.org/) and create a local database
 
 ### 1. Clone the Repository
 ```bash
@@ -159,7 +159,7 @@ pip install -r requirements.txt
 
 Create a `.env` file in the `backend/` directory:
 ```env
-DATABASE_URL=postgresql://your_user:your_password@your_host/your_db
+DATABASE_URL=postgresql://your_user:your_password@localhost/your_db
 ```
 
 ### 3. Seed the Database
