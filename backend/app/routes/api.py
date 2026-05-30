@@ -75,3 +75,19 @@ def background_train_model(ticker: str, background_tasks: BackgroundTasks):
     """Triggers model training in the background. Useful if model is missing."""
     background_tasks.add_task(train_model, ticker, 'rf')
     return {"message": f"Training process started in the background for {ticker}!"}
+
+@router.get("/train_all")
+def background_train_all_models(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Triggers bulk model training for ALL stocks in the background via a simple GET request."""
+    tickers = db.query(StockData.ticker).distinct().all()
+    tickers = [t[0] for t in tickers]
+    
+    def train_all_task():
+        for t in tickers:
+            try:
+                train_model(t, 'rf')
+            except Exception as e:
+                print(f"Failed to train {t}: {e}")
+                
+    background_tasks.add_task(train_all_task)
+    return {"message": f"Bulk training started in the background for {len(tickers)} stocks! This will take ~5-10 minutes. Check Render logs to see progress."}
