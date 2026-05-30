@@ -1,0 +1,5 @@
+# Ensure shell scripts always have LF line endings (required for Linux deployment)
+*.sh text eol=lf
+Procfile text eol=lf
+Dockerfile text eol=lf
+*.conf.template text eol=lf
