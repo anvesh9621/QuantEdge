@@ -26,7 +26,7 @@ def get_or_update_stock_data(ticker_symbol: str, skip_update: bool = False) -> p
         if df.empty:
             # If absolutely no history, fetch last 5 years
             start_date = (today - timedelta(days=1825)).strftime('%Y-%m-%d')
-            new_data = yf.download(yf_ticker, start=start_date, progress=False, threads=False)
+            new_data = yf.download(yf_ticker, start=start_date, progress=False)
         else:
             max_date = df['date'].max()
             # If the gap is more than 1 day (ignoring weekends) we try to fetch missing
@@ -34,7 +34,7 @@ def get_or_update_stock_data(ticker_symbol: str, skip_update: bool = False) -> p
                 # We fetch starting from max_date + 1 day
                 start_date = (max_date + timedelta(days=1)).strftime('%Y-%m-%d')
                 end_date = (today + timedelta(days=1)).strftime('%Y-%m-%d')
-                new_data = yf.download(yf_ticker, start=start_date, end=end_date, progress=False, threads=False)
+                new_data = yf.download(yf_ticker, start=start_date, end=end_date, progress=False)
             
     if not new_data.empty:
         new_data = new_data.reset_index()
