@@ -3,6 +3,8 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import load_dotenv
 
+from sqlalchemy.pool import NullPool
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -16,13 +18,12 @@ if DATABASE_URL.startswith("postgres://"):
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    # pool_pre_ping=True: tests connection health before use — fixes Neon's
-    # serverless SSL drops ("SSL connection has been closed unexpectedly").
-    # pool_recycle=300: recycles connections every 5 min to prevent stale ones.
+    # Disable connection pooling entirely for serverless DBs (Neon).
+    # Neon aggressively drops idle connections, so pooling causes SSL drop errors
+    # during long-running background ML tasks. NullPool creates fresh connections.
     engine = create_engine(
         DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=300,
+        poolclass=NullPool
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
