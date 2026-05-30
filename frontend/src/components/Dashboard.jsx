@@ -23,8 +23,6 @@ function AdvancedChart({ data, type, timeframe }) {
         timeScale: { borderColor: 'rgba(59,69,91,0.5)', timeVisible: true },
       })
       chartRef.current = chart
-
-
     }
 
     // Remove old series if type changed
@@ -108,6 +106,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [chartType, setChartType] = useState('area')
   const [timeframe, setTimeframe] = useState('1Y')
+  
+  // Mobile Sidebar State
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     fetch(`${API}/api/stocks`).then(r => r.json()).then(d => setStocks(d.stocks || []))
@@ -116,6 +117,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!selected) return
     setLoading(true)
+    setSidebarOpen(false) // Close sidebar on mobile when stock changes
 
     Promise.all([
       fetch(`${API}/api/history/${selected}`).then(r => r.json()).catch(() => []),
@@ -188,8 +190,17 @@ export default function Dashboard() {
 
   return (
     <div className="app-layout">
+      {/* ── MOBILE HEADER ── */}
+      <div className="mobile-header">
+        <button className="menu-btn" onClick={() => setSidebarOpen(true)}>☰</button>
+        <h1>Quant<span style={{ color: 'var(--color-up)' }}>Edge</span></h1>
+      </div>
+
+      {/* ── MOBILE OVERLAY ── */}
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+
       {/* ── LEFT SIDEBAR ── */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <h1>Quant<span style={{ color: 'var(--color-up)' }}>Edge</span></h1>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4, letterSpacing: 1 }}>QUANTITATIVE RESEARCH</div>
@@ -311,7 +322,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="stats-grid" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 24 }}>
+                <div className="stats-grid prediction-stats" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 24 }}>
                   <div className="stat-card">
                     <div className="stat-label">Confidence Level</div>
                     <div className="stat-val" style={{ color: prediction.decision === 'HOLD' ? 'var(--color-hold)' : (prediction.decision === 'BUY' ? 'var(--color-up)' : 'var(--color-down)') }}>
@@ -353,10 +364,11 @@ export default function Dashboard() {
       </main>
 
       {loading && history.length > 0 && (
-        <div style={{ position: 'fixed', top: 20, right: 20, background: 'var(--color-up)', color: '#000', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+        <div style={{ position: 'fixed', top: 20, right: 20, background: 'var(--color-up)', color: '#000', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, zIndex: 100 }}>
           UPDATING...
         </div>
       )}
     </div>
   )
 }
+

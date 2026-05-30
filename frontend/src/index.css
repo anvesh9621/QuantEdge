@@ -344,3 +344,127 @@ body {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.7); }
 }
+
+/* ── RESPONSIVE DESIGN ── */
+.mobile-header {
+  display: none;
+}
+.sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .panel-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-layout {
+    flex-direction: column;
+  }
+  
+  .mobile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    z-index: 20;
+  }
+  
+  .mobile-header h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  
+  .menu-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+  
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -260px;
+    height: 100vh;
+    z-index: 100;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .sidebar.open {
+    left: 0;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+  }
+  
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(11, 14, 20, 0.6);
+    z-index: 90;
+    backdrop-filter: blur(2px);
+  }
+  
+  .main-content {
+    padding: 16px;
+    gap: 16px;
+  }
+  
+  .hud-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .ticker-title {
+    font-size: 2rem;
+  }
+  
+  .live-price-container {
+    align-items: flex-start;
+  }
+  
+  .live-price {
+    font-size: 2rem;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  
+  .chart-wrapper {
+    height: 300px;
+  }
+  
+  .decision-badge {
+    padding: 8px 24px;
+    font-size: 1.2rem;
+  }
+  
+  .pred-price {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .chart-toolbar {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .timeframe-btns, .type-btns {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .toolbar-btn {
+    flex: 1;
+    padding: 6px 4px;
+    font-size: 0.75rem;
+  }
+}
