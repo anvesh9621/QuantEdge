@@ -6,10 +6,12 @@
 
 **Real-time market intelligence for NIFTY 50 | Built with FastAPI + React**
 
-[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+🔗 **[Live Demo](https://quant-edge-stock.vercel.app/)** · **[API Server](https://quantedge-8mse.onrender.com/docs)**
+
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgAdmin-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.pgadmin.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://neon.tech/)
 [![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-ML-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
@@ -27,6 +29,17 @@ The system uses two independent AI models working in tandem — a **Random Fores
 
 ---
 
+## 🌐 Live Deployment
+
+| Service | URL | Platform |
+|---|---|---|
+| 🖥️ **Frontend Dashboard** | [quant-edge-stock.vercel.app](https://quant-edge-stock.vercel.app/) | Vercel (Edge CDN) |
+| ⚙️ **Backend API** | [quantedge-8mse.onrender.com](https://quantedge-8mse.onrender.com/) | Render |
+| 📖 **API Documentation** | [Interactive Swagger Docs](https://quantedge-8mse.onrender.com/docs) | Auto-generated |
+| 🗄️ **Database** | Neon Serverless PostgreSQL | Neon |
+
+---
+
 ## ✨ Features
 
 | Feature | Description |
@@ -39,32 +52,35 @@ The system uses two independent AI models working in tandem — a **Random Fores
 | 💬 **Explainable AI** | Every signal comes with a human-readable reasoning breakdown |
 | 🌡️ **Market Sentiment** | Custom gauge from Extreme Fear → Extreme Greed |
 | 🔄 **Auto-Training** | Background model training triggers automatically on first request |
-| 💾 **PostgreSQL Persistence** | 235,000+ rows of historical NIFTY 50 data stored in a local pgAdmin PostgreSQL database |
-| 🎨 **Dark HUD Interface** | Deep-space themed professional UI with real-time animated indicators |
+| 💾 **Serverless PostgreSQL** | 235,000+ rows of historical NIFTY 50 data stored in Neon |
+| 🎨 **Dark HUD Interface** | Bloomberg-inspired professional UI with real-time animated indicators |
+| 📱 **Fully Responsive** | Mobile-first design with hamburger menu and adaptive grid layouts |
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        QuantEdge System                         │
-│                                                                  │
-│  ┌──────────────────┐         ┌──────────────────────────────┐  │
-│  │   React Frontend │ ──API── │      FastAPI Backend          │  │
-│  │   (Vite + JSX)   │         │                              │  │
-│  └──────────────────┘         │  ┌──────────┐ ┌───────────┐ │  │
-│                                │  │ ML Models│ │ Data Svc  │ │  │
-│  Chart Library:                │  │ ┌──────┐ │ │ yfinance  │ │  │
-│  lightweight-charts v4         │  │ │  RF  │ │ │ SQLAlchemy│ │  │
-│                                │  │ │Class │ │ └───────────┘ │  │
-│  Key Components:               │  │ ├──────┤ │               │  │
-│  • AdvancedChart               │  │ │  RF  │ │ ┌───────────┐ │  │
-│  • Dashboard                   │  │ │ Reg  │ │ │ PostgreSQL│ │  │
-│  • Sidebar (50 tickers)        │  │ └──────┘ │ │ (pgAdmin) │ │  │
-│                                │  └──────────┘ └───────────┘ │  │
-│                                └──────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          QuantEdge System                                │
+│                                                                          │
+│  ┌────────────────────┐                  ┌───────────────────────────┐   │
+│  │  React Frontend    │                  │    FastAPI Backend         │   │
+│  │  (Vite + JSX)      │   REST API       │                           │   │
+│  │                    │ ──────────────►  │  ┌──────────┐ ┌────────┐  │   │
+│  │  Hosted on Vercel  │                  │  │ ML Models│ │Data Svc│  │   │
+│  │  (Edge CDN)        │                  │  │ ┌──────┐ │ │yfinance│  │   │
+│  └────────────────────┘                  │  │ │  RF  │ │ │        │  │   │
+│                                          │  │ │Class │ │ └────────┘  │   │
+│  Chart Library:                          │  │ ├──────┤ │             │   │
+│  lightweight-charts v4                   │  │ │  RF  │ │ ┌────────┐  │   │
+│                                          │  │ │ Reg  │ │ │  Neon  │  │   │
+│  Key Components:                         │  │ └──────┘ │ │Postgres│  │   │
+│  • AdvancedChart                         │  └──────────┘ │(Cloud) │  │   │
+│  • Dashboard                             │               └────────┘  │   │
+│  • Mobile Sidebar                        │  Hosted on Render         │   │
+│  • Responsive Grid                       └───────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -74,26 +90,28 @@ The system uses two independent AI models working in tandem — a **Random Fores
 ### Backend
 | Technology | Purpose |
 |---|---|
-| **FastAPI** | High-performance async REST API with auto-generated docs |
+| **FastAPI** | High-performance async REST API with auto-generated Swagger docs |
 | **Scikit-Learn** | Random Forest Classifier + Regressor for ML predictions |
 | **Pandas + Pandas-TA** | Data processing, RSI, SMA, and volatility indicator calculation |
 | **yfinance** | Live market fundamentals and historical price ingestion |
-| **SQLAlchemy** | ORM for PostgreSQL database interaction |
+| **SQLAlchemy** | ORM for PostgreSQL database interaction (NullPool for serverless) |
 | **Joblib** | Compressed model serialization for fast disk I/O |
 
 ### Frontend
 | Technology | Purpose |
 |---|---|
-| **React 18 + Vite** | Lightning-fast component-based UI framework |
+| **React 19 + Vite 8** | Lightning-fast component-based UI framework |
 | **TradingView Lightweight Charts** | Professional HTML5 canvas chart rendering |
-| **Vanilla CSS** | Custom dark design system with CSS variables |
+| **Vanilla CSS** | Custom dark design system with CSS variables & media queries |
 | **Inter + JetBrains Mono** | Premium typography from Google Fonts |
 
 ### Database & Infrastructure
 | Technology | Purpose |
 |---|---|
-| **PostgreSQL (pgAdmin)** | Local PostgreSQL database with 235k+ stock records |
-| **Python-dotenv** | Environment variable management |
+| **Neon Serverless PostgreSQL** | Cloud-hosted PostgreSQL with 235k+ stock records |
+| **Vercel** | Frontend hosting with global Edge CDN for instant loading |
+| **Render** | Backend hosting with auto-deploy from GitHub |
+| **cron-job.org** | Keep-alive pings to prevent Render free-tier cold starts |
 
 ---
 
@@ -134,9 +152,9 @@ Otherwise    → HOLD  🟡
 ## 💻 Local Setup
 
 ### Prerequisites
-- Python 3.12+
+- Python 3.11+
 - Node.js 18+
-- PostgreSQL database — install [pgAdmin](https://www.pgadmin.org/) and create a local database
+- PostgreSQL database (local pgAdmin or cloud Neon)
 
 ### 1. Clone the Repository
 ```bash
@@ -192,6 +210,37 @@ npm run dev
 
 ---
 
+## 🚀 Deployment
+
+The project is deployed across three cloud services for optimal performance:
+
+### Frontend → Vercel
+- Connected to the GitHub repo's `frontend/` directory
+- Auto-deploys on every push to `main`
+- Environment variable: `VITE_API_URL=https://quantedge-8mse.onrender.com`
+
+### Backend → Render
+- Connected to the GitHub repo's `backend/` directory
+- Uses a `Procfile` with a custom `startup.sh` script
+- Auto-seeds the database on first deploy
+- Environment variable: `DATABASE_URL` (from Neon)
+
+### Database → Neon
+- Serverless PostgreSQL with automatic scaling
+- Uses `NullPool` in SQLAlchemy to handle idle connection drops
+
+### Deployment Files
+| File | Purpose |
+|---|---|
+| `backend/Procfile` | Tells Render to run the startup script |
+| `backend/startup.sh` | Auto-seeds DB if empty, then starts uvicorn on `$PORT` |
+| `backend/.python-version` | Pins Python 3.11.9 for Render |
+| `frontend/Dockerfile` | Multi-stage build: npm → Vite build → Nginx |
+| `frontend/nginx.conf.template` | Nginx config with dynamic `$PORT` for Railway/Docker |
+| `.gitattributes` | Forces LF line endings for deployment scripts |
+
+---
+
 ## 📡 API Reference
 
 | Method | Endpoint | Description |
@@ -200,9 +249,10 @@ npm run dev
 | `GET` | `/api/history/{ticker}` | Last 1000 days of OHLCV data |
 | `GET` | `/api/predict/{ticker}` | Full AI prediction payload |
 | `GET` | `/api/fundamentals/{ticker}` | Live market fundamentals |
+| `GET` | `/api/train_all` | Bulk train all 50 stock models in background |
 | `GET` | `/api/history/predictions/{ticker}` | Past prediction log |
 
-Interactive API docs are auto-generated at `http://localhost:8000/docs`.
+Interactive API docs are auto-generated at [`/docs`](https://quantedge-8mse.onrender.com/docs).
 
 ---
 
@@ -213,30 +263,38 @@ QuantEdge/
 ├── backend/
 │   ├── app/
 │   │   ├── database/
-│   │   │   ├── db.py           # SQLAlchemy engine & session
-│   │   │   └── models.py       # ORM table definitions
+│   │   │   ├── db.py              # SQLAlchemy engine & NullPool config
+│   │   │   └── models.py          # ORM table definitions
 │   │   ├── ml/
-│   │   │   ├── features.py     # Technical indicator calculations
-│   │   │   ├── predict.py      # Dual-model prediction engine
-│   │   │   └── train.py        # Model training pipeline
+│   │   │   ├── features.py        # Technical indicator calculations
+│   │   │   ├── predict.py         # Dual-model prediction engine
+│   │   │   └── train.py           # Model training pipeline
 │   │   ├── routes/
-│   │   │   └── api.py          # All REST API endpoints
+│   │   │   └── api.py             # All REST API endpoints
 │   │   ├── services/
-│   │   │   └── data_service.py # DB queries & yfinance integration
-│   │   └── main.py             # FastAPI app entry point
-│   ├── historical_data/        # Raw NIFTY 50 CSV files
-│   ├── models/                 # Saved .pkl model files
-│   ├── import_data.py          # One-time DB seeding script
-│   ├── train_all.py            # Bulk model training script
+│   │   │   └── data_service.py    # DB queries & yfinance integration
+│   │   └── main.py                # FastAPI app entry point
+│   ├── historical_data/           # Raw NIFTY 50 CSV files
+│   ├── models/                    # Saved .pkl model files (gitignored)
+│   ├── import_data.py             # One-time DB seeding script
+│   ├── train_all.py               # Bulk model training script
+│   ├── startup.sh                 # Render deployment startup script
+│   ├── Procfile                   # Render process file
+│   ├── .python-version            # Python version pin for Render
 │   └── requirements.txt
-└── frontend/
-    ├── src/
-    │   ├── components/
-    │   │   └── Dashboard.jsx   # Main app component
-    │   ├── App.jsx
-    │   ├── index.css           # Global design system
-    │   └── main.jsx
-    └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   └── Dashboard.jsx      # Main app component (responsive)
+│   │   ├── App.jsx
+│   │   ├── index.css              # Global design system + media queries
+│   │   └── main.jsx
+│   ├── Dockerfile                 # Multi-stage build for containerized deploy
+│   ├── nginx.conf.template        # Nginx config for Docker
+│   └── package.json
+├── .gitattributes                 # LF line ending enforcement
+├── .gitignore
+└── README.md
 ```
 
 ---
@@ -245,7 +303,7 @@ QuantEdge/
 
 The system supports all 50 stocks in the NIFTY 50 index, including:
 
-`RELIANCE` · `TCS` · `INFY` · `HDFCBANK` · `ICICIBANK` · `HINDUNILVR` · `ITC` · `KOTAKBANK` · `LT` · `WIPRO` · and 40 more.
+`RELIANCE` · `TCS` · `INFY` · `HDFCBANK` · `ICICIBANK` · `HINDUNILVR` · `ITC` · `KOTAKBANK` · `LT` · `WIPRO` · `BAJFINANCE` · `BHARTIARTL` · `TATASTEEL` · `ADANIPORTS` · `ASIANPAINT` · and 35 more.
 
 ---
 
@@ -271,6 +329,6 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 
 Built with ❤️ for the Indian stock market
 
-**[GitHub](https://github.com/anvesh9621/QuantEdge)** · **[Report Bug](https://github.com/anvesh9621/QuantEdge/issues)** · **[Request Feature](https://github.com/anvesh9621/QuantEdge/issues)**
+**[Live App](https://quant-edge-stock.vercel.app/)** · **[GitHub](https://github.com/anvesh9621/QuantEdge)** · **[Report Bug](https://github.com/anvesh9621/QuantEdge/issues)** · **[Request Feature](https://github.com/anvesh9621/QuantEdge/issues)**
 
 </div>
