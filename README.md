@@ -6,7 +6,7 @@
 
 **Real-time market intelligence for NIFTY 50 | Built with FastAPI + React**
 
-🔗 **[Live Demo](https://quant-edge-stock.vercel.app/)** · **[API Server](https://quantedge-8mse.onrender.com/docs)**
+🔗 **[Live Demo](https://quantedge-ruddy.vercel.app/)** · **[API Server](https://quantedge-8mse.onrender.com/docs)**
 
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -33,7 +33,7 @@ The system uses two independent AI models working in tandem — a **Random Fores
 
 | Service | URL | Platform |
 |---|---|---|
-| 🖥️ **Frontend Dashboard** | [quant-edge-stock.vercel.app](https://quant-edge-stock.vercel.app/) | Vercel (Edge CDN) |
+| 🖥️ **Frontend Dashboard** | [quantedge-ruddy.vercel.app](https://quantedge-ruddy.vercel.app/) | Vercel (Edge CDN) |
 | ⚙️ **Backend API** | [quantedge-8mse.onrender.com](https://quantedge-8mse.onrender.com/) | Render |
 | 📖 **API Documentation** | [Interactive Swagger Docs](https://quantedge-8mse.onrender.com/docs) | Auto-generated |
 | 🗄️ **Database** | Neon Serverless PostgreSQL | Neon |
@@ -329,6 +329,6 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 
 Built with ❤️ for the Indian stock market
 
-**[Live App](https://quant-edge-stock.vercel.app/)** · **[GitHub](https://github.com/anvesh9621/QuantEdge)** · **[Report Bug](https://github.com/anvesh9621/QuantEdge/issues)** · **[Request Feature](https://github.com/anvesh9621/QuantEdge/issues)**
+**[Live App](https://quantedge-ruddy.vercel.app/)** · **[GitHub](https://github.com/anvesh9621/QuantEdge)** · **[Report Bug](https://github.com/anvesh9621/QuantEdge/issues)** · **[Request Feature](https://github.com/anvesh9621/QuantEdge/issues)**
 
 </div>
