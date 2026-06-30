@@ -19,8 +19,9 @@ def train_model(ticker_symbol: str, model_type='rf'):
     df = get_processed_stock_data(ticker_symbol, for_training=True)
     
     if df.empty or len(df) < 50:
-        print(f"[{ticker_symbol}] Not enough data to train.")
-        return False
+        msg = f"Not enough data to train ({len(df)} rows)."
+        print(f"[{ticker_symbol}] {msg}")
+        return {"status": "error", "message": msg, "samples": len(df)}
         
     X = df[FEATURES]
     # Classifier target (Binary: 1=UP, 0=DOWN)
@@ -64,7 +65,7 @@ def train_model(ticker_symbol: str, model_type='rf'):
     joblib.dump(regressor, reg_model_path, compress=3) # Add compression!
     
     print(f"[{ticker_symbol}] Models saved successfully.\n")
-    return True
+    return {"status": "success", "samples": len(df), "accuracy": acc, "mae": mae}
 
 if __name__ == "__main__":
     train_model('RELIANCE', 'rf')
