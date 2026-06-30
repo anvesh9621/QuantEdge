@@ -2,15 +2,24 @@ import os
 import gc
 import time
 import random
+import requests
 from app.database.db import SessionLocal
 from app.database.models import StockData
 from app.ml.train import train_model
 
 def train_all_stocks():
+    # Log outbound IP to diagnose rate limit sources
+    try:
+        ip = requests.get("https://api.ipify.org", timeout=5).text
+        print(f"Outbound IP Address: {ip}")
+    except Exception as e:
+        print(f"Failed to fetch outbound IP: {e}")
+        
     db = SessionLocal()
     # Fetch all unique stock tickers from the Postgres Database
     tickers = db.query(StockData.ticker).distinct().all()
-    tickers = [t[0] for t in tickers]
+    # Filter out 'HDFC' as it merged into HDFCBANK and no longer exists
+    tickers = [t[0] for t in tickers if t[0] != 'HDFC']
     db.close()
     
     print(f"===========================================================")

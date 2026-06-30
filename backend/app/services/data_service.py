@@ -14,7 +14,7 @@ except Exception as e:
     print(f"Failed to initialize curl_cffi session: {e}. Falling back to default.")
     yf_session = None
 
-def _execute_with_retry(func, *args, **kwargs):
+def _execute_with_retry(func, ticker_symbol, *args, **kwargs):
     """
     Executes a function (like yf.download) with exponential backoff retries.
     Waits 10s, 30s, 90s on failure before giving up.
@@ -23,6 +23,9 @@ def _execute_with_retry(func, *args, **kwargs):
     delays = [10, 30, 90]
     
     for attempt in range(max_retries + 1):
+        if attempt > 0:
+            print(f"[{ticker_symbol}] Attempt {attempt}/{max_retries}...")
+            
         try:
             result = func(*args, **kwargs)
             
@@ -30,14 +33,17 @@ def _execute_with_retry(func, *args, **kwargs):
             if isinstance(result, pd.DataFrame) and result.empty:
                 raise ValueError("Received empty DataFrame, possible rate limit.")
                 
+            if attempt > 0:
+                print(f"[{ticker_symbol}] Succeeded on attempt {attempt}")
+                
             return result
         except Exception as e:
             if attempt < max_retries:
                 wait_time = delays[attempt]
-                print(f"[Rate Limit / Error] Attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s...")
+                print(f"[{ticker_symbol}] Rate limited on attempt {attempt}, waiting {wait_time}s before retry...")
                 time.sleep(wait_time)
             else:
-                print(f"[Fatal] Failed after {max_retries} retries: {e}")
+                print(f"[{ticker_symbol}] FAILED after {max_retries} attempts — giving up")
                 raise e
 
 def get_or_update_stock_data(ticker_symbol: str, skip_update: bool = False) -> pd.DataFrame:
@@ -60,7 +66,7 @@ def get_or_update_stock_data(ticker_symbol: str, skip_update: bool = False) -> p
             start_date = (today - timedelta(days=1825)).strftime('%Y-%m-%d')
             print(f"[{ticker_symbol}] No DB history. Fetching from {start_date}...")
             try:
-                new_data = _execute_with_retry(yf.download, yf_ticker, start=start_date, progress=False, session=yf_session, threads=False)
+                new_data = _execute_with_retry(yf.download, ticker_symbol, yf_ticker, start=start_date, progress=False, session=yf_session, threads=False)
             except Exception:
                 print(f"[{ticker_symbol}] Giving up on full history fetch.")
         else:
@@ -70,7 +76,7 @@ def get_or_update_stock_data(ticker_symbol: str, skip_update: bool = False) -> p
                 end_date = (today + timedelta(days=1)).strftime('%Y-%m-%d')
                 print(f"[{ticker_symbol}] Stale DB history. Fetching delta from {start_date} to {end_date}...")
                 try:
-                    new_data = _execute_with_retry(yf.download, yf_ticker, start=start_date, end=end_date, progress=False, session=yf_session, threads=False)
+                    new_data = _execute_with_retry(yf.download, ticker_symbol, yf_ticker, start=start_date, end=end_date, progress=False, session=yf_session, threads=False)
                 except Exception:
                     print(f"[{ticker_symbol}] Giving up on incremental fetch.")
             
@@ -120,7 +126,7 @@ def get_stock_fundamentals(ticker_symbol: str) -> dict:
                 raise ValueError("Empty info dict returned.")
             return info
             
-        info = _execute_with_retry(_fetch_info)
+        info = _execute_with_retry(_fetch_info, ticker_symbol)
         
         return {
             "market_cap": info.get("marketCap", 0),
