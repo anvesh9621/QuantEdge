@@ -18,8 +18,12 @@ def train_all_stocks():
     db = SessionLocal()
     # Fetch all unique stock tickers from the Postgres Database
     tickers = db.query(StockData.ticker).distinct().all()
-    # Filter out 'HDFC' as it merged into HDFCBANK and no longer exists
-    tickers = [t[0] for t in tickers if t[0] != 'HDFC']
+    # Filter out 'HDFC' as it merged into HDFCBANK and no longer exists.
+    # We use upper() and exclude exact matches of known suffixes, while ensuring HDFCBANK is kept.
+    tickers = [
+        t[0] for t in tickers 
+        if t[0].strip().upper() not in ['HDFC', 'HDFC.NS', 'HDFC.BO']
+    ]
     db.close()
     
     print(f"===========================================================")

@@ -114,8 +114,18 @@ def get_processed_stock_data(ticker_symbol: str, for_training=True, skip_update=
         raise ValueError(f"No data available for ticker {ticker_symbol}")
     return calculate_features(df, for_training=for_training)
 
+_fundamentals_cache = {}
+
 def get_stock_fundamentals(ticker_symbol: str) -> dict:
     try:
+        current_time = time.time()
+        # Check cache (300 seconds TTL)
+        if ticker_symbol in _fundamentals_cache:
+            timestamp, data = _fundamentals_cache[ticker_symbol]
+            if current_time - timestamp < 300:
+                print(f"[{ticker_symbol}] Returning fundamentals from cache.")
+                return data
+                
         yf_ticker = f"{ticker_symbol}.NS"
         
         # Helper to fetch info using the custom session
@@ -128,7 +138,7 @@ def get_stock_fundamentals(ticker_symbol: str) -> dict:
             
         info = _execute_with_retry(_fetch_info, ticker_symbol)
         
-        return {
+        result = {
             "market_cap": info.get("marketCap", 0),
             "pe_ratio": info.get("trailingPE", 0),
             "dividend_yield": info.get("dividendYield", 0),
@@ -140,6 +150,11 @@ def get_stock_fundamentals(ticker_symbol: str) -> dict:
             "current_price": info.get("currentPrice", 0),
             "previous_close": info.get("previousClose", 0),
         }
+        
+        # Store in cache
+        _fundamentals_cache[ticker_symbol] = (current_time, result)
+        return result
+        
     except Exception as e:
         print(f"Error fetching fundamentals for {ticker_symbol}: {e}")
         return {}
