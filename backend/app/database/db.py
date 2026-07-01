@@ -1,9 +1,10 @@
+import os
+import time
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-import os
-from dotenv import load_dotenv
-
 from sqlalchemy.pool import NullPool
+from sqlalchemy.exc import OperationalError
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,7 +25,14 @@ else:
     engine = create_engine(
         DATABASE_URL,
         poolclass=NullPool,
-        pool_pre_ping=True
+        pool_pre_ping=True,
+        connect_args={
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+            "connect_timeout": 10,
+        }
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -33,8 +41,22 @@ Base = declarative_base()
 
 # Dependency to yield database session
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        db = SessionLocal()
+        try:
+            yield db
+            return
+        except OperationalError as e:
+            db.close()
+            if 'SSL connection has been closed' in str(e) or 'connection' in str(e).lower():
+                if attempt < max_attempts - 1:
+                    print(f"[DB] SSL connection dropped, retrying ({attempt + 1}/{max_attempts})...")
+                    time.sleep(1)
+                    continue
+            raise e
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass  # already closed, ignore
