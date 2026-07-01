@@ -62,13 +62,32 @@ def predict_stock(ticker: str, background_tasks: BackgroundTasks, db: Session = 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from time import time
+_fundamentals_cache = {}  # {ticker: {"ts": timestamp, "data": {...}}}
+CACHE_TTL = 300  # 5 minutes
+
 @router.get("/fundamentals/{ticker}")
 def get_fundamentals(ticker: str):
     """Returns basic fundamental statistics from Yahoo Finance."""
-    res = get_stock_fundamentals(ticker)
-    if not res:
-        raise HTTPException(status_code=404, detail="Fundamentals could not be fetched.")
-    return res
+    now = time()
+    cached = _fundamentals_cache.get(ticker)
+    if cached and (now - cached["ts"]) < CACHE_TTL:
+        print(f"[{ticker}] Fundamentals: serving from cache (age: {int(now - cached['ts'])}s)")
+        return cached["data"]
+    
+    try:
+        print(f"[{ticker}] Fundamentals: fetching fresh from yfinance")
+        res = get_stock_fundamentals(ticker)
+        if not res:
+            raise HTTPException(status_code=404, detail="Fundamentals could not be fetched.")
+        _fundamentals_cache[ticker] = {"ts": now, "data": res}
+        return res
+    except Exception as e:
+        # If yfinance fails but we have stale cache, return it rather than erroring
+        if cached:
+            print(f"[{ticker}] Fundamentals fetch failed, serving stale cache")
+            return cached["data"]
+        raise e
 
 @router.post("/train/{ticker}")
 def background_train_model(ticker: str, background_tasks: BackgroundTasks):
@@ -79,13 +98,20 @@ def background_train_model(ticker: str, background_tasks: BackgroundTasks):
 @router.get("/train_all")
 def background_train_all_models(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Triggers bulk model training for ALL stocks in the background via a simple GET request."""
+    DEAD_TICKERS = {'HDFC', 'HDFC.NS', 'MM', 'MM.NS'}
     tickers = db.query(StockData.ticker).distinct().all()
-    tickers = [t[0] for t in tickers]
+    tickers = [
+        t[0] for t in tickers 
+        if t[0].upper() not in DEAD_TICKERS 
+        and t[0].upper().replace('.NS','') not in DEAD_TICKERS
+    ]
     
     def train_all_task():
+        from app.database.db import SessionLocal
         for t in tickers:
             try:
-                train_model(t, 'rf')
+                with SessionLocal() as session:
+                    train_model(t, 'rf')
             except Exception as e:
                 print(f"Failed to train {t}: {e}")
                 

@@ -23,7 +23,8 @@ else:
     # during long-running background ML tasks. NullPool creates fresh connections.
     engine = create_engine(
         DATABASE_URL,
-        poolclass=NullPool
+        poolclass=NullPool,
+        pool_pre_ping=True
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

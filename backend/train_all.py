@@ -15,19 +15,20 @@ def train_all_stocks():
     except Exception as e:
         print(f"Failed to fetch outbound IP: {e}")
         
-    db = SessionLocal()
-    # Fetch all unique stock tickers from the Postgres Database
-    tickers = db.query(StockData.ticker).distinct().all()
-    # Filter out 'HDFC' as it merged into HDFCBANK and no longer exists.
-    # We use upper() and exclude exact matches of known suffixes, while ensuring HDFCBANK is kept.
-    tickers = [
-        t[0] for t in tickers 
-        if t[0].strip().upper() not in ['HDFC', 'HDFC.NS', 'HDFC.BO']
-    ]
-    db.close()
+    DEAD_TICKERS = {'HDFC', 'HDFC.NS', 'MM', 'MM.NS'}
     
+    with SessionLocal() as db:
+        # Fetch all unique stock tickers from the Postgres Database
+        tickers = db.query(StockData.ticker).distinct().all()
+        tickers = [
+            t[0] for t in tickers 
+            if t[0].upper() not in DEAD_TICKERS 
+            and t[0].upper().replace('.NS','') not in DEAD_TICKERS
+        ]
+        
     print(f"===========================================================")
-    print(f"Found {len(tickers)} unique stocks. Starting bulk training...")
+    print(f"Excluded dead tickers: {DEAD_TICKERS}")
+    print(f"Processing {len(tickers)} active tickers...")
     print(f"===========================================================")
     
     successes = []
@@ -36,8 +37,10 @@ def train_all_stocks():
     for tick in tickers:
         try:
             print(f"--- Processing {tick} ---")
-            # Trains the model, which internally fetches yfinance delta beforehand automatically
-            result = train_model(tick, 'rf')
+            
+            with SessionLocal() as db:
+                # Trains the model, which internally fetches yfinance delta beforehand automatically
+                result = train_model(tick, 'rf')
             
             if result and isinstance(result, dict) and result.get("status") == "success":
                 successes.append(tick)
