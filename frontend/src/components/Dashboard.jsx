@@ -95,6 +95,12 @@ function Spinner() {
   )
 }
 
+// ── Helper: format large numbers ───────────────────────────────────────────
+function formatVal(val) {
+  if (val === null || val === undefined || val === 0) return null
+  return val
+}
+
 export default function Dashboard() {
   const [stocks, setStocks] = useState([])
   const [selected, setSelected] = useState('RELIANCE')
@@ -118,45 +124,56 @@ export default function Dashboard() {
     if (!selected) return
     // Reset state before loading new stock
     setFundamentals(null)
+    setPrediction(null)
     setLoading(true)
-    setSidebarOpen(false) // Close sidebar on mobile when stock changes
+    setSidebarOpen(false)
 
-    // Load fast data first (DB only)
-    Promise.all([
-      fetch(`${API}/api/history/${selected}`).then(r => r.json()).catch(() => []),
-      fetch(`${API}/api/predict/${selected}`).then(r => r.json()).catch(() => ({error: "Prediction API failed."}))
-    ]).then(([hist, pred]) => {
+    // Load ALL data in parallel — history & predict are fast (DB-only),
+    // fundamentals may be slow but we don't block on it
+    const historyPromise = fetch(`${API}/api/history/${selected}`)
+      .then(r => r.json()).catch(() => [])
+    
+    const predictPromise = fetch(`${API}/api/predict/${selected}`)
+      .then(r => r.ok ? r.json() : null).catch(() => null)
+
+    const fundamentalsPromise = fetch(`${API}/api/fundamentals/${selected}`)
+      .then(r => r.ok ? r.json() : null).catch(() => null)
+
+    // Show chart + prediction as soon as they arrive
+    Promise.all([historyPromise, predictPromise]).then(([hist, pred]) => {
       setHistory(Array.isArray(hist) ? hist : [])
-      setPrediction(pred)
-      setLoading(false) // Unblock UI immediately!
+      if (pred && !pred.error && !pred.detail) {
+        setPrediction(pred)
+      }
+      setLoading(false)
     }).catch(err => {
       console.error(err)
       setLoading(false)
     })
 
-    // Load slow data independently (Hits yfinance)
-    fetch(`${API}/api/fundamentals/${selected}`).then(r => r.json()).catch(() => null).then(fund => {
-      if (fund && !fund.detail) {
+    // Fundamentals loads independently — populates Key Statistics when ready
+    fundamentalsPromise.then(fund => {
+      if (fund && Object.keys(fund).length > 0 && !fund.detail) {
         setFundamentals(fund)
         setLastUpdated(new Date())
       }
     })
   }, [selected])
 
-  // Live price polling — silently refreshes only fundamentals (current price) every 30s
+  // Live price polling — silently refreshes only fundamentals (current price) every 60s
   useEffect(() => {
     if (!selected) return
     const interval = setInterval(() => {
       fetch(`${API}/api/fundamentals/${selected}`)
-        .then(r => r.json())
+        .then(r => r.ok ? r.json() : null)
         .then(fund => {
-          if (fund && !fund.detail) {
+          if (fund && Object.keys(fund).length > 0 && !fund.detail) {
             setFundamentals(fund)
             setLastUpdated(new Date())
           }
         })
         .catch(() => { }) // Silently fail — don't disrupt UI on poll error
-    }, 30000) // Every 30 seconds
+    }, 60000) // Every 60 seconds (reduced from 30s to ease rate limits)
     return () => clearInterval(interval)
   }, [selected])
 
@@ -169,14 +186,29 @@ export default function Dashboard() {
     )
   }
 
+  // ── Compute display price from best available source ─────────────────────
   let displayPrice = 0
   let dayChange = 0
   let dayChangePct = 0
 
-  if (fundamentals?.current_price && fundamentals?.previous_close) {
+  if (fundamentals && fundamentals.current_price > 0 && fundamentals.previous_close > 0) {
     displayPrice = fundamentals.current_price
     dayChange = fundamentals.current_price - fundamentals.previous_close
-    dayChangePct = fundamentals.previous_close > 0 ? (dayChange / fundamentals.previous_close) * 100 : 0
+    dayChangePct = (dayChange / fundamentals.previous_close) * 100
+  } else if (prediction && prediction.current_price > 0) {
+    // Fallback to prediction's current_price (which comes from DB data)
+    displayPrice = prediction.current_price
+    // Compute change from history if available
+    if (history.length >= 2) {
+      let prevClose = displayPrice
+      for (let i = history.length - 2; i >= 0; i--) {
+        if (history[i].time !== history[history.length - 1].time) {
+          prevClose = history[i].close; break;
+        }
+      }
+      dayChange = displayPrice - prevClose
+      dayChangePct = prevClose > 0 ? (dayChange / prevClose) * 100 : 0
+    }
   } else if (history.length >= 2) {
     displayPrice = history[history.length - 1].close
     let prevClose = displayPrice
@@ -195,6 +227,19 @@ export default function Dashboard() {
   const pPrice = hasModel ? prediction.predicted_price : null
   const pReturn = hasModel ? prediction.predicted_return_pct : null
   const pUp = pReturn >= 0
+
+  // ── Merge stats from prediction + fundamentals ───────────────────────────
+  // 52-W High/Low always come from prediction (computed from DB, always available)
+  const w52High = hasModel && prediction.week52 ? prediction.week52.high : null
+  const w52Low = hasModel && prediction.week52 ? prediction.week52.low : null
+  
+  // These come from fundamentals (yfinance) — may be unavailable
+  const marketCap = formatVal(fundamentals?.market_cap)
+  const peRatio = formatVal(fundamentals?.pe_ratio)
+  const volToday = formatVal(fundamentals?.volume_today)
+  const volAvg = formatVal(fundamentals?.volume_avg)
+  const fiftyDayAvg = formatVal(fundamentals?.fifty_day_avg)
+  const divYield = formatVal(fundamentals?.dividend_yield)
 
   return (
     <div className="app-layout">
@@ -273,35 +318,35 @@ export default function Dashboard() {
               <div className="stats-grid" style={{ marginTop: 0 }}>
                 <div className="stat-card">
                   <div className="stat-label">Market Cap</div>
-                  <div className="stat-val">{fundamentals?.market_cap ? `₹${(fundamentals.market_cap / 10000000000).toFixed(2)}T` : '—'}</div>
+                  <div className="stat-val">{marketCap ? `₹${(marketCap / 10000000000).toFixed(2)}T` : '—'}</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">P/E Ratio</div>
-                  <div className="stat-val">{fundamentals?.pe_ratio ? fundamentals.pe_ratio.toFixed(2) : '—'}</div>
+                  <div className="stat-val">{peRatio ? peRatio.toFixed(2) : '—'}</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">Volume (Today)</div>
-                  <div className="stat-val">{fundamentals?.volume_today ? (fundamentals.volume_today / 1000000).toFixed(2) + 'M' : '—'}</div>
+                  <div className="stat-val">{volToday ? (volToday / 1000000).toFixed(2) + 'M' : '—'}</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">Avg Volume</div>
-                  <div className="stat-val">{fundamentals?.volume_avg ? (fundamentals.volume_avg / 1000000).toFixed(2) + 'M' : '—'}</div>
+                  <div className="stat-val">{volAvg ? (volAvg / 1000000).toFixed(2) + 'M' : '—'}</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">52-W High</div>
-                  <div className="stat-val">{hasModel && prediction?.week52?.high ? `₹${prediction.week52.high}` : '—'}</div>
+                  <div className="stat-val">{w52High ? `₹${w52High}` : '—'}</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">52-W Low</div>
-                  <div className="stat-val">{hasModel && prediction?.week52?.low ? `₹${prediction.week52.low}` : '—'}</div>
+                  <div className="stat-val">{w52Low ? `₹${w52Low}` : '—'}</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">50-Day Avg</div>
-                  <div className="stat-val">{fundamentals?.fifty_day_avg ? `₹${fundamentals.fifty_day_avg.toFixed(2)}` : '—'}</div>
+                  <div className="stat-val">{fiftyDayAvg ? `₹${fiftyDayAvg.toFixed(2)}` : '—'}</div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-label">Dividend Yld</div>
-                  <div className="stat-val">{fundamentals?.dividend_yield ? (fundamentals.dividend_yield * 100).toFixed(2) + '%' : '—'}</div>
+                  <div className="stat-val">{divYield ? (divYield * 100).toFixed(2) + '%' : '—'}</div>
                 </div>
               </div>
             </div>
@@ -379,4 +424,3 @@ export default function Dashboard() {
     </div>
   )
 }
-

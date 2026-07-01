@@ -126,7 +126,7 @@ def get_stock_fundamentals(ticker_symbol: str) -> dict:
                 raise ValueError("Empty info dict returned.")
             return info
             
-        info = _execute_with_retry(_fetch_info, ticker_symbol, max_retries=0)
+        info = _execute_with_retry(_fetch_info, ticker_symbol, max_retries=1)
         
         return {
             "market_cap": info.get("marketCap", 0),

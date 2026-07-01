@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
+from time import time
 import json
 from app.database.db import get_db
 from app.database.models import PredictionHistory, StockData
@@ -10,11 +11,14 @@ from app.services.data_service import get_stock_fundamentals
 
 router = APIRouter()
 
+# ── In-memory cache for fundamentals (yfinance is slow & rate-limited) ──────
+_fundamentals_cache = {}  # {ticker: {"ts": timestamp, "data": {...}}}
+CACHE_TTL = 300  # 5 minutes
+
 @router.get("/stocks")
 def get_available_stocks(db: Session = Depends(get_db)):
     """Returns a list of unique tickers available in the database."""
     stocks = db.query(StockData.ticker).distinct().all()
-    # Returns [('TCS',), ('RELIANCE',)] so we unpack it
     return {"stocks": [s[0] for s in stocks]}
 
 @router.get("/history/{ticker}")
@@ -62,32 +66,36 @@ def predict_stock(ticker: str, background_tasks: BackgroundTasks, db: Session = 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-from time import time
-_fundamentals_cache = {}  # {ticker: {"ts": timestamp, "data": {...}}}
-CACHE_TTL = 300  # 5 minutes
-
 @router.get("/fundamentals/{ticker}")
 def get_fundamentals(ticker: str):
-    """Returns basic fundamental statistics from Yahoo Finance."""
+    """Returns basic fundamental statistics from Yahoo Finance with caching."""
     now = time()
     cached = _fundamentals_cache.get(ticker)
+    
+    # Serve from cache if fresh enough
     if cached and (now - cached["ts"]) < CACHE_TTL:
         print(f"[{ticker}] Fundamentals: serving from cache (age: {int(now - cached['ts'])}s)")
         return cached["data"]
     
+    # Try fetching fresh data
     try:
         print(f"[{ticker}] Fundamentals: fetching fresh from yfinance")
         res = get_stock_fundamentals(ticker)
-        if not res:
-            raise HTTPException(status_code=404, detail="Fundamentals could not be fetched.")
-        _fundamentals_cache[ticker] = {"ts": now, "data": res}
-        return res
+        if res:  # Got valid data
+            _fundamentals_cache[ticker] = {"ts": now, "data": res}
+            return res
     except Exception as e:
-        # If yfinance fails but we have stale cache, return it rather than erroring
-        if cached:
-            print(f"[{ticker}] Fundamentals fetch failed, serving stale cache")
-            return cached["data"]
-        raise e
+        print(f"[{ticker}] Fundamentals fetch error: {e}")
+    
+    # yfinance failed — serve stale cache if available (better than nothing)
+    if cached:
+        print(f"[{ticker}] Fundamentals: yfinance failed, serving stale cache")
+        return cached["data"]
+    
+    # No cache, no fresh data — return empty with 200 (not 404!)
+    # This prevents the frontend from breaking. Stats will just show '—'.
+    print(f"[{ticker}] Fundamentals: no data available, returning empty")
+    return {}
 
 @router.post("/train/{ticker}")
 def background_train_model(ticker: str, background_tasks: BackgroundTasks):
