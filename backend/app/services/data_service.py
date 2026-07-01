@@ -14,12 +14,11 @@ except Exception as e:
     print(f"Failed to initialize curl_cffi session: {e}. Falling back to default.")
     yf_session = None
 
-def _execute_with_retry(func, ticker_symbol, *args, **kwargs):
+def _execute_with_retry(func, ticker_symbol, *args, max_retries=3, **kwargs):
     """
     Executes a function (like yf.download) with exponential backoff retries.
     Waits 10s, 30s, 90s on failure before giving up.
     """
-    max_retries = 3
     delays = [10, 30, 90]
     
     for attempt in range(max_retries + 1):
@@ -43,7 +42,8 @@ def _execute_with_retry(func, ticker_symbol, *args, **kwargs):
                 print(f"[{ticker_symbol}] Rate limited on attempt {attempt}, waiting {wait_time}s before retry...")
                 time.sleep(wait_time)
             else:
-                print(f"[{ticker_symbol}] FAILED after {max_retries} attempts — giving up")
+                if max_retries > 0:
+                    print(f"[{ticker_symbol}] FAILED after {max_retries} attempts — giving up")
                 raise e
 
 def get_or_update_stock_data(ticker_symbol: str, skip_update: bool = False) -> pd.DataFrame:
@@ -114,18 +114,8 @@ def get_processed_stock_data(ticker_symbol: str, for_training=True, skip_update=
         raise ValueError(f"No data available for ticker {ticker_symbol}")
     return calculate_features(df, for_training=for_training)
 
-_fundamentals_cache = {}
-
 def get_stock_fundamentals(ticker_symbol: str) -> dict:
     try:
-        current_time = time.time()
-        # Check cache (300 seconds TTL)
-        if ticker_symbol in _fundamentals_cache:
-            timestamp, data = _fundamentals_cache[ticker_symbol]
-            if current_time - timestamp < 300:
-                print(f"[{ticker_symbol}] Returning fundamentals from cache.")
-                return data
-                
         yf_ticker = f"{ticker_symbol}.NS"
         
         # Helper to fetch info using the custom session
@@ -136,9 +126,9 @@ def get_stock_fundamentals(ticker_symbol: str) -> dict:
                 raise ValueError("Empty info dict returned.")
             return info
             
-        info = _execute_with_retry(_fetch_info, ticker_symbol)
+        info = _execute_with_retry(_fetch_info, ticker_symbol, max_retries=0)
         
-        result = {
+        return {
             "market_cap": info.get("marketCap", 0),
             "pe_ratio": info.get("trailingPE", 0),
             "dividend_yield": info.get("dividendYield", 0),
@@ -150,11 +140,6 @@ def get_stock_fundamentals(ticker_symbol: str) -> dict:
             "current_price": info.get("currentPrice", 0),
             "previous_close": info.get("previousClose", 0),
         }
-        
-        # Store in cache
-        _fundamentals_cache[ticker_symbol] = (current_time, result)
-        return result
-        
     except Exception as e:
         print(f"Error fetching fundamentals for {ticker_symbol}: {e}")
         return {}

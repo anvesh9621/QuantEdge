@@ -116,22 +116,30 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!selected) return
+    // Reset state before loading new stock
+    setFundamentals(null)
     setLoading(true)
     setSidebarOpen(false) // Close sidebar on mobile when stock changes
 
+    // Load fast data first (DB only)
     Promise.all([
       fetch(`${API}/api/history/${selected}`).then(r => r.json()).catch(() => []),
-      fetch(`${API}/api/predict/${selected}`).then(r => r.json()).catch(() => ({error: "Prediction API failed."})),
-      fetch(`${API}/api/fundamentals/${selected}`).then(r => r.json()).catch(() => null)
-    ]).then(([hist, pred, fund]) => {
+      fetch(`${API}/api/predict/${selected}`).then(r => r.json()).catch(() => ({error: "Prediction API failed."}))
+    ]).then(([hist, pred]) => {
       setHistory(Array.isArray(hist) ? hist : [])
       setPrediction(pred)
-      setFundamentals(fund)
-      setLastUpdated(new Date())
-      setLoading(false)
+      setLoading(false) // Unblock UI immediately!
     }).catch(err => {
       console.error(err)
       setLoading(false)
+    })
+
+    // Load slow data independently (Hits yfinance)
+    fetch(`${API}/api/fundamentals/${selected}`).then(r => r.json()).catch(() => null).then(fund => {
+      if (fund && !fund.detail) {
+        setFundamentals(fund)
+        setLastUpdated(new Date())
+      }
     })
   }, [selected])
 
