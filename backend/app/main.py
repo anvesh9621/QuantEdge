@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.database.db import engine, Base
 from app.routes.api import router as api_router
+from app.ws_manager import manager
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -22,6 +23,25 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api")
+
+@app.on_event("startup")
+async def startup_event():
+    manager.start()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    manager.stop()
+
+@app.websocket("/ws/prices/{ticker}")
+async def websocket_prices(websocket: WebSocket, ticker: str):
+    await manager.connect(websocket, ticker)
+    try:
+        while True:
+            # We just need to keep the connection open to push data.
+            # If the client sends anything, we can safely ignore or echo it.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, ticker)
 
 @app.get("/")
 def health_check():

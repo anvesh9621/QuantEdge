@@ -1,52 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { createChart } from 'lightweight-charts'
-import protobuf from 'protobufjs'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-
-// ── PROTOBUF SCHEMA (Yahoo Finance WebSocket) ──────────────────────────────
-const root = protobuf.Root.fromJSON({
-  nested: {
-    pricingData: {
-      fields: {
-        id: { type: "string", id: 1 },
-        price: { type: "float", id: 2 },
-        time: { type: "sint64", id: 3 },
-        currency: { type: "string", id: 4 },
-        exchange: { type: "string", id: 5 },
-        quoteType: { type: "string", id: 6 },
-        marketHours: { type: "string", id: 7 },
-        changePercent: { type: "float", id: 8 },
-        dayVolume: { type: "sint64", id: 9 },
-        dayHigh: { type: "float", id: 10 },
-        dayLow: { type: "float", id: 11 },
-        change: { type: "float", id: 12 },
-        shortName: { type: "string", id: 13 },
-        expireDate: { type: "sint64", id: 14 },
-        openPrice: { type: "float", id: 15 },
-        previousClose: { type: "float", id: 16 },
-        strikePrice: { type: "float", id: 17 },
-        underlyingSymbol: { type: "string", id: 18 },
-        openInterest: { type: "sint64", id: 19 },
-        optionsType: { type: "sint64", id: 20 },
-        miniOption: { type: "sint64", id: 21 },
-        lastSize: { type: "sint64", id: 22 },
-        bid: { type: "float", id: 23 },
-        bidSize: { type: "float", id: 24 },
-        ask: { type: "float", id: 25 },
-        askSize: { type: "float", id: 26 },
-        priceHint: { type: "sint64", id: 27 },
-        vol_24hr: { type: "sint64", id: 28 },
-        volAllCurrencies: { type: "sint64", id: 29 },
-        fromcurrency: { type: "string", id: 30 },
-        lastMarket: { type: "string", id: 31 },
-        circulatingSupply: { type: "float", id: 32 },
-        marketcap: { type: "float", id: 33 }
-      }
-    }
-  }
-})
-const PricingData = root.lookupType("pricingData")
+// Convert HTTP API URL to WebSocket URL
+const WS_API = API.replace('http://', 'ws://').replace('https://', 'wss://')
 
 // ── ODOMETER (LIVE PRICE SCROLLER) ─────────────────────────────────────────
 function LivePriceScroller({ value, decimals = 2, prefix = "₹", suffix = "" }) {
@@ -185,8 +142,8 @@ export default function Dashboard() {
   const [liveChange, setLiveChange] = useState(null)
   const [liveChangePct, setLiveChangePct] = useState(null)
   
-  // To detect connection status visually
-  const [wsConnected, setWsConnected] = useState(false)
+  // Connection Status ('connecting', 'live', 'stale')
+  const [wsStatus, setWsStatus] = useState('connecting')
 
   const [loading, setLoading] = useState(true)
   const [chartType, setChartType] = useState('area')
@@ -198,7 +155,7 @@ export default function Dashboard() {
     fetch(`${API}/api/stocks`).then(r => r.json()).then(d => setStocks(d.stocks || []))
   }, [])
 
-  // ── 1. Fetch backend API data ──
+  // ── 1. Fetch backend API data (History/Predict/Fundamentals) ──
   useEffect(() => {
     if (!selected) return
     setFundamentals(null)
@@ -236,65 +193,74 @@ export default function Dashboard() {
     })
   }, [selected])
 
-  // ── 2. Handle Live WebSocket for Real-Time Pricing ──
+  // ── 2. Handle Live WebSocket for Real-Time Pricing (Via Backend Proxy) ──
   useEffect(() => {
     if (!selected) return
+    
     let ws = null
-    let pingInterval = null
-    let isCancelled = false // Flag to prevent state updates on unmounted component
-    const yfTicker = `${selected}.NS`
-
+    let reconnectAttempts = 0
+    let isCancelled = false // Prevent state updates on unmounted component
+    
     const connectWs = () => {
-      ws = new WebSocket('wss://streamer.finance.yahoo.com')
+      setWsStatus('connecting')
+      
+      // Connect to our own FastAPI backend
+      ws = new WebSocket(`${WS_API}/ws/prices/${selected}`)
 
       ws.onopen = () => {
         if (isCancelled) {
           ws.close()
           return
         }
-        setWsConnected(true)
-        ws.send(JSON.stringify({ subscribe: [yfTicker] }))
-        // Keep-alive ping every 30s so the connection doesn't drop
-        pingInterval = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ subscribe: [yfTicker] }))
-          }
-        }, 30000)
+        reconnectAttempts = 0
+        setWsStatus('live')
+        
+        // Optional: Keep-alive ping to our backend
+        // (Usually handled automatically by FastAPI, but safe to have)
       }
 
       ws.onmessage = (event) => {
         if (isCancelled) return
         try {
-          // Yahoo sends a base64 encoded protobuf string
-          const buffer = Uint8Array.from(atob(event.data), c => c.charCodeAt(0))
-          const message = PricingData.decode(buffer)
-          const data = PricingData.toObject(message, { defaults: true })
+          const data = JSON.parse(event.data)
           
-          if (data.id === yfTicker && data.price) {
+          if (data.price) {
             setLivePrice(data.price)
             if (data.change !== undefined) setLiveChange(data.change)
             if (data.changePercent !== undefined) setLiveChangePct(data.changePercent)
             setLastUpdated(new Date())
+            
+            // If the backend signals that the upstream Yahoo connection dropped, 
+            // it will send is_stale = true.
+            if (data.is_stale !== undefined) {
+              setWsStatus(data.is_stale ? 'stale' : 'live')
+            } else {
+               setWsStatus('live')
+            }
           }
         } catch (e) {
-          // Ignore parse errors from non-pricing messages
+          console.error("Error parsing backend WS message:", e)
         }
       }
 
       ws.onclose = () => {
-        if (isCancelled) return // Do not attempt to reconnect if user switched stocks
-        setWsConnected(false)
-        clearInterval(pingInterval)
-        // Auto-reconnect after 5 seconds if connection lost
-        setTimeout(connectWs, 5000)
+        if (isCancelled) return
+        
+        setWsStatus('stale') // The connection dropped, UI will show stale data
+        reconnectAttempts++
+        
+        // Exponential backoff for frontend reconnection
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 15000)
+        console.log(`Frontend WS closed. Reconnecting in ${delay}ms...`)
+        
+        setTimeout(connectWs, delay)
       }
     }
 
     connectWs()
 
     return () => {
-      isCancelled = true // Mark as unmounted/switched
-      clearInterval(pingInterval)
+      isCancelled = true
       if (ws) ws.close()
     }
   }, [selected])
@@ -314,7 +280,6 @@ export default function Dashboard() {
   let dayChangePct = 0
 
   if (livePrice > 0) {
-    // If WebSocket provided a live price, use it!
     displayPrice = livePrice
     dayChange = liveChange || 0
     dayChangePct = liveChangePct || 0
@@ -408,9 +373,13 @@ export default function Dashboard() {
               </div>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, justifyContent: 'flex-end' }}>
-                <span className="live-dot" style={{ background: wsConnected ? 'var(--color-up)' : 'var(--color-down)' }} />
+                <span className="live-dot" style={{ 
+                  background: wsStatus === 'live' ? 'var(--color-up)' : (wsStatus === 'connecting' ? 'var(--color-hold)' : 'var(--color-down)'),
+                  animation: wsStatus === 'live' ? 'pulse-dot 2s ease-in-out infinite' : 'none',
+                  opacity: wsStatus === 'live' ? 1 : 0.6
+                }} />
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  {wsConnected ? 'LIVE STREAM' : 'OFFLINE'}
+                  {wsStatus === 'live' ? 'LIVE STREAM' : (wsStatus === 'connecting' ? 'CONNECTING...' : 'DELAYED / STALE')}
                   {lastUpdated && ` · ${lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
                 </span>
               </div>
