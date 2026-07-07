@@ -468,3 +468,27 @@ body {
     font-size: 0.75rem;
   }
 }
+
+/* ── ODOMETER (SCROLLING PRICE) ── */
+.odometer-wrapper {
+  display: inline-flex;
+  align-items: baseline;
+  overflow: hidden;
+  height: 1em;
+  line-height: 1;
+}
+
+.odometer-digit-col {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: transform;
+}
+
+.odometer-digit {
+  height: 1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+

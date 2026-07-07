@@ -1,7 +1,82 @@
 import { useState, useEffect, useRef } from 'react'
 import { createChart } from 'lightweight-charts'
+import protobuf from 'protobufjs'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+// ── PROTOBUF SCHEMA (Yahoo Finance WebSocket) ──────────────────────────────
+const root = protobuf.Root.fromJSON({
+  nested: {
+    pricingData: {
+      fields: {
+        id: { type: "string", id: 1 },
+        price: { type: "float", id: 2 },
+        time: { type: "sint64", id: 3 },
+        currency: { type: "string", id: 4 },
+        exchange: { type: "string", id: 5 },
+        quoteType: { type: "string", id: 6 },
+        marketHours: { type: "string", id: 7 },
+        changePercent: { type: "float", id: 8 },
+        dayVolume: { type: "sint64", id: 9 },
+        dayHigh: { type: "float", id: 10 },
+        dayLow: { type: "float", id: 11 },
+        change: { type: "float", id: 12 },
+        shortName: { type: "string", id: 13 },
+        expireDate: { type: "sint64", id: 14 },
+        openPrice: { type: "float", id: 15 },
+        previousClose: { type: "float", id: 16 },
+        strikePrice: { type: "float", id: 17 },
+        underlyingSymbol: { type: "string", id: 18 },
+        openInterest: { type: "sint64", id: 19 },
+        optionsType: { type: "sint64", id: 20 },
+        miniOption: { type: "sint64", id: 21 },
+        lastSize: { type: "sint64", id: 22 },
+        bid: { type: "float", id: 23 },
+        bidSize: { type: "float", id: 24 },
+        ask: { type: "float", id: 25 },
+        askSize: { type: "float", id: 26 },
+        priceHint: { type: "sint64", id: 27 },
+        vol_24hr: { type: "sint64", id: 28 },
+        volAllCurrencies: { type: "sint64", id: 29 },
+        fromcurrency: { type: "string", id: 30 },
+        lastMarket: { type: "string", id: 31 },
+        circulatingSupply: { type: "float", id: 32 },
+        marketcap: { type: "float", id: 33 }
+      }
+    }
+  }
+})
+const PricingData = root.lookupType("pricingData")
+
+// ── ODOMETER (LIVE PRICE SCROLLER) ─────────────────────────────────────────
+function LivePriceScroller({ value, decimals = 2, prefix = "₹", suffix = "" }) {
+  if (value === null || value === undefined || isNaN(value)) return <span>—</span>
+
+  const valStr = Number(value).toFixed(decimals)
+  
+  return (
+    <div className="odometer-wrapper">
+      {prefix && <span style={{ marginRight: 4 }}>{prefix}</span>}
+      {valStr.split('').map((char, i) => {
+        if (char === '.' || char === ',' || char === '-') {
+          return <span key={i} style={{ display: 'inline-block', width: '0.4em', textAlign: 'center' }}>{char}</span>
+        }
+        
+        const num = parseInt(char, 10)
+        return (
+          <div key={i} style={{ display: 'inline-block', overflow: 'hidden', height: '1em', width: '0.6em', position: 'relative' }}>
+            <div className="odometer-digit-col" style={{ transform: `translateY(-${num}em)` }}>
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(d => (
+                <div key={d} className="odometer-digit">{d}</div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+      {suffix && <span>{suffix}</span>}
+    </div>
+  )
+}
 
 // ── CHART (TradingView lightweight-charts v4) ──────────────────────────────
 function AdvancedChart({ data, type, timeframe }) {
@@ -9,7 +84,6 @@ function AdvancedChart({ data, type, timeframe }) {
   const chartRef = useRef(null)
   const seriesRef = useRef(null)
 
-  // Initialize and update chart
   useEffect(() => {
     if (!data || data.length === 0 || !ref.current) return
 
@@ -25,7 +99,6 @@ function AdvancedChart({ data, type, timeframe }) {
       chartRef.current = chart
     }
 
-    // Remove old series if type changed
     if (seriesRef.current) {
       chartRef.current.removeSeries(seriesRef.current)
     }
@@ -63,7 +136,6 @@ function AdvancedChart({ data, type, timeframe }) {
     }
     seriesRef.current = series
 
-    // Apply Timeframe
     if (timeframe === 'MAX') {
       chartRef.current.timeScale().fitContent()
     } else {
@@ -95,7 +167,6 @@ function Spinner() {
   )
 }
 
-// ── Helper: format large numbers ───────────────────────────────────────────
 function formatVal(val) {
   if (val === null || val === undefined || val === 0) return null
   return val
@@ -109,27 +180,35 @@ export default function Dashboard() {
   const [fundamentals, setFundamentals] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
 
+  // Live WebSocket State
+  const [livePrice, setLivePrice] = useState(null)
+  const [liveChange, setLiveChange] = useState(null)
+  const [liveChangePct, setLiveChangePct] = useState(null)
+  
+  // To detect connection status visually
+  const [wsConnected, setWsConnected] = useState(false)
+
   const [loading, setLoading] = useState(true)
   const [chartType, setChartType] = useState('area')
   const [timeframe, setTimeframe] = useState('1Y')
   
-  // Mobile Sidebar State
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     fetch(`${API}/api/stocks`).then(r => r.json()).then(d => setStocks(d.stocks || []))
   }, [])
 
+  // ── 1. Fetch backend API data ──
   useEffect(() => {
     if (!selected) return
-    // Reset state before loading new stock
     setFundamentals(null)
     setPrediction(null)
+    setLivePrice(null)
+    setLiveChange(null)
+    setLiveChangePct(null)
     setLoading(true)
     setSidebarOpen(false)
 
-    // Load ALL data in parallel — history & predict are fast (DB-only),
-    // fundamentals may be slow but we don't block on it
     const historyPromise = fetch(`${API}/api/history/${selected}`)
       .then(r => r.json()).catch(() => [])
     
@@ -139,7 +218,6 @@ export default function Dashboard() {
     const fundamentalsPromise = fetch(`${API}/api/fundamentals/${selected}`)
       .then(r => r.ok ? r.json() : null).catch(() => null)
 
-    // Show chart + prediction as soon as they arrive
     Promise.all([historyPromise, predictPromise]).then(([hist, pred]) => {
       setHistory(Array.isArray(hist) ? hist : [])
       if (pred && !pred.error && !pred.detail) {
@@ -151,30 +229,66 @@ export default function Dashboard() {
       setLoading(false)
     })
 
-    // Fundamentals loads independently — populates Key Statistics when ready
     fundamentalsPromise.then(fund => {
       if (fund && Object.keys(fund).length > 0 && !fund.detail) {
         setFundamentals(fund)
-        setLastUpdated(new Date())
       }
     })
   }, [selected])
 
-  // Live price polling — silently refreshes only fundamentals (current price) every 60s
+  // ── 2. Handle Live WebSocket for Real-Time Pricing ──
   useEffect(() => {
     if (!selected) return
-    const interval = setInterval(() => {
-      fetch(`${API}/api/fundamentals/${selected}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(fund => {
-          if (fund && Object.keys(fund).length > 0 && !fund.detail) {
-            setFundamentals(fund)
+    let ws = null
+    let pingInterval = null
+    const yfTicker = `${selected}.NS`
+
+    const connectWs = () => {
+      ws = new WebSocket('wss://streamer.finance.yahoo.com')
+
+      ws.onopen = () => {
+        setWsConnected(true)
+        ws.send(JSON.stringify({ subscribe: [yfTicker] }))
+        // Keep-alive ping every 30s so the connection doesn't drop
+        pingInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ subscribe: [yfTicker] }))
+          }
+        }, 30000)
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          // Yahoo sends a base64 encoded protobuf string
+          const buffer = Uint8Array.from(atob(event.data), c => c.charCodeAt(0))
+          const message = PricingData.decode(buffer)
+          const data = PricingData.toObject(message, { defaults: true })
+          
+          if (data.id === yfTicker && data.price) {
+            setLivePrice(data.price)
+            if (data.change !== undefined) setLiveChange(data.change)
+            if (data.changePercent !== undefined) setLiveChangePct(data.changePercent)
             setLastUpdated(new Date())
           }
-        })
-        .catch(() => { }) // Silently fail — don't disrupt UI on poll error
-    }, 60000) // Every 60 seconds (reduced from 30s to ease rate limits)
-    return () => clearInterval(interval)
+        } catch (e) {
+          // Ignore parse errors from non-pricing messages
+        }
+      }
+
+      ws.onclose = () => {
+        setWsConnected(false)
+        clearInterval(pingInterval)
+        // Auto-reconnect after 5 seconds if connection lost
+        setTimeout(connectWs, 5000)
+      }
+    }
+
+    connectWs()
+
+    return () => {
+      clearInterval(pingInterval)
+      if (ws) ws.close()
+    }
   }, [selected])
 
   if (loading && history.length === 0) {
@@ -186,19 +300,22 @@ export default function Dashboard() {
     )
   }
 
-  // ── Compute display price from best available source ─────────────────────
+  // ── Compute Fallback display price ─────────────────────
   let displayPrice = 0
   let dayChange = 0
   let dayChangePct = 0
 
-  if (fundamentals && fundamentals.current_price > 0 && fundamentals.previous_close > 0) {
+  if (livePrice > 0) {
+    // If WebSocket provided a live price, use it!
+    displayPrice = livePrice
+    dayChange = liveChange || 0
+    dayChangePct = liveChangePct || 0
+  } else if (fundamentals && fundamentals.current_price > 0 && fundamentals.previous_close > 0) {
     displayPrice = fundamentals.current_price
     dayChange = fundamentals.current_price - fundamentals.previous_close
     dayChangePct = (dayChange / fundamentals.previous_close) * 100
   } else if (prediction && prediction.current_price > 0) {
-    // Fallback to prediction's current_price (which comes from DB data)
     displayPrice = prediction.current_price
-    // Compute change from history if available
     if (history.length >= 2) {
       let prevClose = displayPrice
       for (let i = history.length - 2; i >= 0; i--) {
@@ -228,12 +345,8 @@ export default function Dashboard() {
   const pReturn = hasModel ? prediction.predicted_return_pct : null
   const pUp = pReturn >= 0
 
-  // ── Merge stats from prediction + fundamentals ───────────────────────────
-  // 52-W High/Low always come from prediction (computed from DB, always available)
   const w52High = hasModel && prediction.week52 ? prediction.week52.high : null
   const w52Low = hasModel && prediction.week52 ? prediction.week52.low : null
-  
-  // These come from fundamentals (yfinance) — may be unavailable
   const marketCap = formatVal(fundamentals?.market_cap)
   const peRatio = formatVal(fundamentals?.pe_ratio)
   const volToday = formatVal(fundamentals?.volume_today)
@@ -276,18 +389,23 @@ export default function Dashboard() {
           </div>
           {displayPrice > 0 && (
             <div className="live-price-container">
-              <div className="live-price">₹{displayPrice.toFixed(2)}</div>
-              <div className={`price-change ${isUp ? 'up' : 'down'}`}>
-                {isUp ? '▲' : '▼'} {Math.abs(dayChange).toFixed(2)} ({Math.abs(dayChangePct).toFixed(2)}%) <span style={{ marginLeft: 4, fontWeight: 500, color: 'var(--text-secondary)' }}>today</span>
+              <div className="live-price">
+                <LivePriceScroller value={displayPrice} />
               </div>
-              {lastUpdated && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, justifyContent: 'flex-end' }}>
-                  <span className="live-dot" />
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    LIVE · {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </span>
-                </div>
-              )}
+              <div className={`price-change ${isUp ? 'up' : 'down'}`} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {isUp ? '▲' : '▼'} 
+                <LivePriceScroller value={Math.abs(dayChange)} prefix="" suffix="" />
+                <span>(</span><LivePriceScroller value={Math.abs(dayChangePct)} prefix="" suffix="%" /><span>)</span>
+                <span style={{ marginLeft: 4, fontWeight: 500, color: 'var(--text-secondary)' }}>today</span>
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, justifyContent: 'flex-end' }}>
+                <span className="live-dot" style={{ background: wsConnected ? 'var(--color-up)' : 'var(--color-down)' }} />
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  {wsConnected ? 'LIVE STREAM' : 'OFFLINE'}
+                  {lastUpdated && ` · ${lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
+                </span>
+              </div>
             </div>
           )}
         </header>
