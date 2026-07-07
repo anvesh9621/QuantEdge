@@ -11,3 +11,6 @@ xgboost
 python-dotenv
 joblib
 curl_cffi
+websockets
+protobuf
+grpcio-tools
