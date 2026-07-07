@@ -241,12 +241,17 @@ export default function Dashboard() {
     if (!selected) return
     let ws = null
     let pingInterval = null
+    let isCancelled = false // Flag to prevent state updates on unmounted component
     const yfTicker = `${selected}.NS`
 
     const connectWs = () => {
       ws = new WebSocket('wss://streamer.finance.yahoo.com')
 
       ws.onopen = () => {
+        if (isCancelled) {
+          ws.close()
+          return
+        }
         setWsConnected(true)
         ws.send(JSON.stringify({ subscribe: [yfTicker] }))
         // Keep-alive ping every 30s so the connection doesn't drop
@@ -258,6 +263,7 @@ export default function Dashboard() {
       }
 
       ws.onmessage = (event) => {
+        if (isCancelled) return
         try {
           // Yahoo sends a base64 encoded protobuf string
           const buffer = Uint8Array.from(atob(event.data), c => c.charCodeAt(0))
@@ -276,6 +282,7 @@ export default function Dashboard() {
       }
 
       ws.onclose = () => {
+        if (isCancelled) return // Do not attempt to reconnect if user switched stocks
         setWsConnected(false)
         clearInterval(pingInterval)
         // Auto-reconnect after 5 seconds if connection lost
@@ -286,6 +293,7 @@ export default function Dashboard() {
     connectWs()
 
     return () => {
+      isCancelled = true // Mark as unmounted/switched
       clearInterval(pingInterval)
       if (ws) ws.close()
     }
@@ -390,12 +398,12 @@ export default function Dashboard() {
           {displayPrice > 0 && (
             <div className="live-price-container">
               <div className="live-price">
-                <LivePriceScroller value={displayPrice} />
+                <LivePriceScroller key={`price-${selected}`} value={displayPrice} />
               </div>
               <div className={`price-change ${isUp ? 'up' : 'down'}`} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 {isUp ? '▲' : '▼'} 
-                <LivePriceScroller value={Math.abs(dayChange)} prefix="" suffix="" />
-                <span>(</span><LivePriceScroller value={Math.abs(dayChangePct)} prefix="" suffix="%" /><span>)</span>
+                <LivePriceScroller key={`change-${selected}`} value={Math.abs(dayChange)} prefix="" suffix="" />
+                <span>(</span><LivePriceScroller key={`pct-${selected}`} value={Math.abs(dayChangePct)} prefix="" suffix="%" /><span>)</span>
                 <span style={{ marginLeft: 4, fontWeight: 500, color: 'var(--text-secondary)' }}>today</span>
               </div>
               
