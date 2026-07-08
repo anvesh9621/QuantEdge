@@ -117,29 +117,41 @@ def get_processed_stock_data(ticker_symbol: str, for_training=True, skip_update=
 def get_stock_fundamentals(ticker_symbol: str) -> dict:
     try:
         yf_ticker = f"{ticker_symbol}.NS"
+        stock = yf.Ticker(yf_ticker, session=yf_session)
         
-        # Helper to fetch info using the custom session
-        def _fetch_info():
-            stock = yf.Ticker(yf_ticker, session=yf_session)
-            info = stock.info
-            if not info:
-                raise ValueError("Empty info dict returned.")
-            return info
+        # 1. Always get fast_info first (rarely rate-limited, very fast)
+        try:
+            f_info = stock.fast_info
+            fundamentals = {
+                "market_cap": getattr(f_info, "market_cap", 0),
+                "volume_today": getattr(f_info, "last_volume", 0),
+                "volume_avg": getattr(f_info, "ten_day_average_volume", 0),
+                "fifty_day_avg": getattr(f_info, "fifty_day_average", 0),
+                "current_price": getattr(f_info, "last_price", 0),
+                "previous_close": getattr(f_info, "previous_close", 0),
+                "pe_ratio": 0,
+                "dividend_yield": 0,
+                "sector": "Unknown",
+                "industry": "Unknown"
+            }
+        except Exception as e:
+            print(f"Error fetching fast_info for {ticker_symbol}: {e}")
+            fundamentals = {}
             
-        info = _execute_with_retry(_fetch_info, ticker_symbol, max_retries=0)
-        
-        return {
-            "market_cap": info.get("marketCap", 0),
-            "pe_ratio": info.get("trailingPE", 0),
-            "dividend_yield": info.get("dividendYield", 0),
-            "volume_today": info.get("volume", 0),
-            "volume_avg": info.get("averageVolume", 0),
-            "fifty_day_avg": info.get("fiftyDayAverage", 0),
-            "sector": info.get("sector", "Unknown"),
-            "industry": info.get("industry", "Unknown"),
-            "current_price": info.get("currentPrice", 0),
-            "previous_close": info.get("previousClose", 0),
-        }
+        # 2. Try to get full info for the missing fields (often rate-limited)
+        try:
+            # We don't use _execute_with_retry here to fail instantly if rate limited
+            info = stock.info
+            if info:
+                fundamentals["market_cap"] = info.get("marketCap", fundamentals.get("market_cap", 0))
+                fundamentals["pe_ratio"] = info.get("trailingPE", 0)
+                fundamentals["dividend_yield"] = info.get("dividendYield", 0)
+                fundamentals["sector"] = info.get("sector", "Unknown")
+                fundamentals["industry"] = info.get("industry", "Unknown")
+        except Exception as e:
+            print(f"Full info rate-limited/failed for {ticker_symbol}, using fast_info only: {e}")
+            
+        return fundamentals
     except Exception as e:
-        print(f"Error fetching fundamentals for {ticker_symbol}: {e}")
+        print(f"Critical error fetching fundamentals for {ticker_symbol}: {e}")
         return {}
