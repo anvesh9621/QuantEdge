@@ -13,7 +13,8 @@ router = APIRouter()
 
 # ── In-memory cache for fundamentals (yfinance is slow & rate-limited) ──────
 _fundamentals_cache = {}  # {ticker: {"ts": timestamp, "data": {...}}}
-CACHE_TTL = 300  # 5 minutes
+CACHE_TTL = 300      # 5 minutes for valid data
+FAIL_CACHE_TTL = 120  # 2 minutes for failed/empty results (prevents retry spam)
 
 @router.get("/stocks")
 def get_available_stocks(db: Session = Depends(get_db)):
@@ -72,28 +73,33 @@ def get_fundamentals(ticker: str):
     now = time()
     cached = _fundamentals_cache.get(ticker)
     
-    # Serve from cache if fresh enough
-    if cached and (now - cached["ts"]) < CACHE_TTL:
-        print(f"[{ticker}] Fundamentals: serving from cache (age: {int(now - cached['ts'])}s)")
-        return cached["data"]
+    # Serve from cache if fresh enough (whether successful or a cached failure)
+    if cached:
+        ttl = CACHE_TTL if cached["data"] else FAIL_CACHE_TTL
+        age = now - cached["ts"]
+        if age < ttl:
+            status = "cache" if cached["data"] else "cached-empty"
+            print(f"[{ticker}] Fundamentals: serving from {status} (age: {int(age)}s)")
+            return cached["data"] or {}
     
-    # Try fetching fresh data
+    # Try fetching fresh data — no retries (fail fast, non-critical data)
     try:
         print(f"[{ticker}] Fundamentals: fetching fresh from yfinance")
         res = get_stock_fundamentals(ticker)
-        if res:  # Got valid data
-            _fundamentals_cache[ticker] = {"ts": now, "data": res}
-            return res
+        # Cache result whether successful or empty — prevents immediate retry on rate limit
+        _fundamentals_cache[ticker] = {"ts": now, "data": res if res else None}
+        return res or {}
     except Exception as e:
         print(f"[{ticker}] Fundamentals fetch error: {e}")
+        # Cache the failure so we don't hammer Yahoo again for FAIL_CACHE_TTL seconds
+        _fundamentals_cache[ticker] = {"ts": now, "data": None}
     
     # yfinance failed — serve stale cache if available (better than nothing)
-    if cached:
+    if cached and cached["data"]:
         print(f"[{ticker}] Fundamentals: yfinance failed, serving stale cache")
         return cached["data"]
     
     # No cache, no fresh data — return empty with 200 (not 404!)
-    # This prevents the frontend from breaking. Stats will just show '—'.
     print(f"[{ticker}] Fundamentals: no data available, returning empty")
     return {}
 
