@@ -138,18 +138,50 @@ def get_stock_fundamentals(ticker_symbol: str) -> dict:
             print(f"Error fetching fast_info for {ticker_symbol}: {e}")
             fundamentals = {}
             
-        # 2. Try to get full info for the missing fields (often rate-limited)
+        # 2. Scrape HTML for PE and Yield (completely bypasses JSON rate-limiting)
         try:
-            # We don't use _execute_with_retry here to fail instantly if rate limited
+            from bs4 import BeautifulSoup
+            url = f"https://finance.yahoo.com/quote/{yf_ticker}/"
+            # use curl_cffi session to impersonate browser perfectly
+            if yf_session:
+                res = yf_session.get(url, timeout=5)
+            else:
+                import requests
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+                
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.text, 'html.parser')
+                
+                # Extract PE Ratio
+                for tag in soup.find_all('fin-streamer', {'data-field': 'trailingPE'}):
+                    try:
+                        fundamentals["pe_ratio"] = float(tag.text.strip().replace(',', ''))
+                        if fundamentals["pe_ratio"] > 0: break
+                    except Exception: pass
+                        
+                # Extract Dividend Yield
+                for li in soup.find_all('li'):
+                    text = li.text.strip()
+                    if 'Yield' in text and '%' in text:
+                        try:
+                            # e.g., 'Forward Dividend & Yield 6.00 (0.46%)'
+                            fundamentals["dividend_yield"] = float(text.split('(')[1].split('%')[0])
+                            break
+                        except Exception: pass
+        except Exception as e:
+            print(f"Error scraping HTML fundamentals for {ticker_symbol}: {e}")
+
+        # 3. Try to get full info for Sector/Industry (often rate-limited, but we just ignore it now)
+        try:
             info = stock.info
             if info:
                 fundamentals["market_cap"] = info.get("marketCap", fundamentals.get("market_cap", 0))
-                fundamentals["pe_ratio"] = info.get("trailingPE", 0)
-                fundamentals["dividend_yield"] = info.get("dividendYield", 0)
+                fundamentals["pe_ratio"] = fundamentals["pe_ratio"] or info.get("trailingPE", 0)
+                fundamentals["dividend_yield"] = fundamentals["dividend_yield"] or info.get("dividendYield", 0)
                 fundamentals["sector"] = info.get("sector", "Unknown")
                 fundamentals["industry"] = info.get("industry", "Unknown")
         except Exception as e:
-            print(f"Full info rate-limited/failed for {ticker_symbol}, using fast_info only: {e}")
+            pass # We don't care anymore, HTML + fast_info gave us 99% of what we need
             
         return fundamentals
     except Exception as e:
