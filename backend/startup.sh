@@ -33,6 +33,10 @@ if [ $? -ne 0 ]; then
     python import_data.py
 fi
 
-# Step 2: Start the FastAPI server
+# Step 2: Recompile protobuf schema so gencode matches the installed runtime
+echo "Compiling protobuf schema..."
+python -m grpc_tools.protoc -I. --python_out=. app/schemas/pricing.proto
+
+# Step 3: Start the FastAPI server
 echo "Starting uvicorn on port ${PORT:-8000}..."
 uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
