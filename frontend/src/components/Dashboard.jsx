@@ -243,15 +243,22 @@ export default function Dashboard() {
         }
       }
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (isCancelled) return
         
-        setWsStatus('stale') // The connection dropped, UI will show stale data
-        reconnectAttempts++
+        setWsStatus('stale')
         
-        // Exponential backoff for frontend reconnection
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 15000)
-        console.log(`Frontend WS closed. Reconnecting in ${delay}ms...`)
+        // Task 4 (frontend): Distinguish clean server shutdown (code 1001 = "going away")
+        // from an unexpected network drop.
+        // - Clean close (redeploy): reconnect immediately, no backoff increment.
+        // - Abrupt drop: use exponential backoff to avoid hammering the server.
+        const isCleanClose = event.code === 1001 || event.code === 1000
+        if (!isCleanClose) {
+          reconnectAttempts++
+        }
+        
+        const delay = isCleanClose ? 500 : Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 15000)
+        console.log(`Frontend WS closed (code ${event.code}). Reconnecting in ${delay}ms...`)
         
         setTimeout(connectWs, delay)
       }

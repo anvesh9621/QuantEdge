@@ -34,8 +34,9 @@ async def lifespan(app: FastAPI):
     manager.start()
     yield
 
-    # ── Shutdown ──────────────────────────────────────────────────────────
-    manager.stop()
+    # ── Shutdown (Task 4) ─────────────────────────────────────────────────
+    # Sends clean close frames to every browser client and closes Yahoo upstream.
+    await manager.shutdown()
 
 
 app = FastAPI(
@@ -62,12 +63,15 @@ async def websocket_prices(websocket: WebSocket, ticker: str):
     await manager.connect(websocket, ticker)
     try:
         while True:
-            # Keep the connection alive; we push data to the client, not the other way.
+            # We push data TO the client; just keep the receive loop alive.
             await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(websocket, ticker)
+        # Clean disconnect (browser tab closed normally)
+        await manager.disconnect(websocket, ticker)
     except Exception:
-        manager.disconnect(websocket, ticker)
+        # Abrupt drop (network loss, process kill, etc.) — Task 1 guarantee:
+        # cleanup still happens so the client is removed from broadcast list.
+        await manager.disconnect(websocket, ticker)
 
 
 @app.get("/")
