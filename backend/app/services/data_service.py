@@ -9,7 +9,7 @@ from curl_cffi import requests as cffi_requests
 
 # Create a browser-impersonating session to bypass basic bot protection
 try:
-    yf_session = cffi_requests.Session(impersonate="chrome110")
+    yf_session = cffi_requests.Session(impersonate="chrome110", verify=False)
 except Exception as e:
     print(f"Failed to initialize curl_cffi session: {e}. Falling back to default.")
     yf_session = None
@@ -116,72 +116,114 @@ def get_processed_stock_data(ticker_symbol: str, for_training=True, skip_update=
 
 def get_stock_fundamentals(ticker_symbol: str) -> dict:
     try:
-        yf_ticker = f"{ticker_symbol}.NS"
+        # Some NSE tickers were renamed/split; map to the correct current Yahoo Finance symbol
+        YAHOO_TICKER_MAP = {
+            "TATAMOTORS": "TMCV",   # Tata Motors restructured: now TMCV (Commercial Vehicles)
+        }
+        yf_ticker_base = YAHOO_TICKER_MAP.get(ticker_symbol.upper(), ticker_symbol)
+        yf_ticker = f"{yf_ticker_base}.NS"
         stock = yf.Ticker(yf_ticker, session=yf_session)
         
-        # 1. Always get fast_info first (rarely rate-limited, very fast)
+        fundamentals = {
+            "market_cap": 0, "volume_today": 0, "volume_avg": 0,
+            "fifty_day_avg": 0, "current_price": 0, "previous_close": 0,
+            "pe_ratio": 0, "dividend_yield": 0, "sector": "Unknown", "industry": "Unknown"
+        }
+        
+        # 1. fast_info — lightweight, almost never rate-limited; gives price/volume metrics
         try:
             f_info = stock.fast_info
-            fundamentals = {
-                "market_cap": getattr(f_info, "market_cap", 0),
-                "volume_today": getattr(f_info, "last_volume", 0),
-                "volume_avg": getattr(f_info, "ten_day_average_volume", 0),
-                "fifty_day_avg": getattr(f_info, "fifty_day_average", 0),
-                "current_price": getattr(f_info, "last_price", 0),
-                "previous_close": getattr(f_info, "previous_close", 0),
-                "pe_ratio": 0,
-                "dividend_yield": 0,
-                "sector": "Unknown",
-                "industry": "Unknown"
-            }
+            fundamentals["market_cap"] = getattr(f_info, "market_cap", 0)
+            fundamentals["volume_today"] = getattr(f_info, "last_volume", 0)
+            fundamentals["volume_avg"] = getattr(f_info, "ten_day_average_volume", 0)
+            fundamentals["fifty_day_avg"] = getattr(f_info, "fifty_day_average", 0)
+            fundamentals["current_price"] = getattr(f_info, "last_price", 0)
+            fundamentals["previous_close"] = getattr(f_info, "previous_close", 0)
         except Exception as e:
-            print(f"Error fetching fast_info for {ticker_symbol}: {e}")
-            fundamentals = {}
+            print(f"fast_info failed for {ticker_symbol}: {e}")
             
-        # 2. Scrape HTML for PE and Yield (completely bypasses JSON rate-limiting)
+        # 2. Screener.in — PRIMARY source for P/E and Dividend Yield
+        #    Covers all NSE stocks, has no rate limits, is free and public.
+        #    Some stocks have a different Screener slug than the NSE ticker.
+        SCREENER_SLUG_MAP = {
+            "TATAMOTORS": "TMCV",   # Tata Motors is listed as TMCV on Screener
+            "MM":         "M-M",    # M&M: not in our 50 but future-proofed
+        }
+        screener_slug = SCREENER_SLUG_MAP.get(ticker_symbol.upper(), ticker_symbol.upper())
+        
         try:
             from bs4 import BeautifulSoup
-            url = f"https://finance.yahoo.com/quote/{yf_ticker}/"
-            # use curl_cffi session to impersonate browser perfectly
-            if yf_session:
-                res = yf_session.get(url, timeout=5)
-            else:
-                import requests
-                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
-                
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, 'html.parser')
-                
-                # Extract PE Ratio
-                for tag in soup.find_all('fin-streamer', {'data-field': 'trailingPE'}):
+            screener_url = f"https://www.screener.in/company/{screener_slug}/consolidated/"
+            sres = (yf_session.get(screener_url, timeout=7) if yf_session
+                    else __import__('requests').get(screener_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=7, verify=False))
+            
+            if sres.status_code == 200:
+                ssoup = BeautifulSoup(sres.content.decode('utf-8', errors='ignore'), 'html.parser')
+                for li in ssoup.select('#top-ratios li'):
+                    name_el = li.find('span', class_='name')
+                    val_el  = li.find('span', class_='nowrap')
+                    if not name_el or not val_el:
+                        continue
+                    name = name_el.text.strip()
+                    # Strip currency symbols, whitespace, commas; keep digits and dot
+                    raw = val_el.text.strip().replace(',', '')
+                    numeric_str = ''.join(c for c in raw if c.isdigit() or c == '.').strip('.')
                     try:
-                        fundamentals["pe_ratio"] = float(tag.text.strip().replace(',', ''))
-                        if fundamentals["pe_ratio"] > 0: break
-                    except Exception: pass
-                        
-                # Extract Dividend Yield
-                for li in soup.find_all('li'):
-                    text = li.text.strip()
-                    if 'Yield' in text and '%' in text:
-                        try:
-                            # e.g., 'Forward Dividend & Yield 6.00 (0.46%)'
-                            fundamentals["dividend_yield"] = float(text.split('(')[1].split('%')[0])
-                            break
-                        except Exception: pass
+                        numeric_val = float(numeric_str) if numeric_str else 0
+                    except ValueError:
+                        continue
+                    if 'P/E' in name and fundamentals["pe_ratio"] == 0:
+                        fundamentals["pe_ratio"] = numeric_val
+                    elif 'Dividend Yield' in name and fundamentals["dividend_yield"] == 0:
+                        fundamentals["dividend_yield"] = numeric_val
+            else:
+                print(f"Screener.in HTTP {sres.status_code} for {screener_slug}")
         except Exception as e:
-            print(f"Error scraping HTML fundamentals for {ticker_symbol}: {e}")
+            print(f"Screener.in scrape failed for {ticker_symbol}: {e}")
 
-        # 3. Try to get full info for Sector/Industry (often rate-limited, but we just ignore it now)
+        # 3. Yahoo Finance HTML — fallback if Screener still didn't fill PE/Div
+        if fundamentals["pe_ratio"] == 0 or fundamentals["dividend_yield"] == 0:
+            try:
+                from bs4 import BeautifulSoup
+                yurl = f"https://finance.yahoo.com/quote/{yf_ticker}/"
+                yres = (yf_session.get(yurl, timeout=5) if yf_session
+                        else __import__('requests').get(yurl, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5, verify=False))
+                    
+                if yres.status_code == 200:
+                    ysoup = BeautifulSoup(yres.text, 'html.parser')
+                    if fundamentals["pe_ratio"] == 0:
+                        for tag in ysoup.find_all('fin-streamer', {'data-field': 'trailingPE'}):
+                            try:
+                                val = float(tag.text.strip().replace(',', ''))
+                                if val > 0:
+                                    fundamentals["pe_ratio"] = val
+                                    break
+                            except Exception: pass
+                    if fundamentals["dividend_yield"] == 0:
+                        for li in ysoup.find_all('li'):
+                            t = li.text.strip()
+                            if 'Yield' in t and '%' in t:
+                                try:
+                                    fundamentals["dividend_yield"] = float(t.split('(')[1].split('%')[0])
+                                    break
+                                except Exception: pass
+            except Exception as e:
+                print(f"Yahoo HTML fallback failed for {ticker_symbol}: {e}")
+
+        # 4. yfinance.info — last-resort for Sector/Industry labels (often rate-limited)
         try:
             info = stock.info
             if info:
-                fundamentals["market_cap"] = info.get("marketCap", fundamentals.get("market_cap", 0))
-                fundamentals["pe_ratio"] = fundamentals["pe_ratio"] or info.get("trailingPE", 0)
-                fundamentals["dividend_yield"] = fundamentals["dividend_yield"] or info.get("dividendYield", 0)
-                fundamentals["sector"] = info.get("sector", "Unknown")
+                if not fundamentals["market_cap"]:
+                    fundamentals["market_cap"] = info.get("marketCap", 0)
+                if not fundamentals["pe_ratio"]:
+                    fundamentals["pe_ratio"] = info.get("trailingPE", 0)
+                if not fundamentals["dividend_yield"]:
+                    fundamentals["dividend_yield"] = info.get("dividendYield", 0)
+                fundamentals["sector"]   = info.get("sector", "Unknown")
                 fundamentals["industry"] = info.get("industry", "Unknown")
-        except Exception as e:
-            pass # We don't care anymore, HTML + fast_info gave us 99% of what we need
+        except Exception:
+            pass  # Totally fine — sector/industry is cosmetic
             
         return fundamentals
     except Exception as e:
