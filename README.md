@@ -46,14 +46,16 @@ The system uses two independent AI models working in tandem — a **Random Fores
 |---|---|
 | 🤖 **Dual AI Engine** | Classifier (direction) + Regressor (price target) working in parallel |
 | 📊 **TradingView Charts** | Professional candlestick & area charts via Lightweight Charts v4 |
-| 📡 **Live Market Data** | Real-time fundamentals streamed directly from Yahoo Finance API |
+| 📡 **Real-Time WebSocket** | Direct integration with Yahoo Finance `wss://` decoded via Protobuf |
+| 🛡️ **TLS Fingerprint Spoofing** | `curl_cffi` implementation to bypass Yahoo bot detection |
+| 🌐 **4-Tier Fundamentals** | Resilient data fetching via yfinance, Screener.in & HTML scraping |
 | 🧮 **Multi-Signal Scoring** | RSI, SMA, volatility, and classifier confidence fused into one decision |
 | 📈 **52-Week Analytics** | High/Low, % from peak, % from trough |
 | 💬 **Explainable AI** | Every signal comes with a human-readable reasoning breakdown |
 | 🌡️ **Market Sentiment** | Custom gauge from Extreme Fear → Extreme Greed |
 | 🔄 **Auto-Training** | Background model training triggers automatically on first request |
 | 💾 **Serverless PostgreSQL** | 235,000+ rows of historical NIFTY 50 data stored in Neon |
-| 🎨 **Dark HUD Interface** | Bloomberg-inspired professional UI with real-time animated indicators |
+| 🎨 **Dark HUD Interface** | Bloomberg-inspired professional UI with custom Odometer animations |
 | 📱 **Fully Responsive** | Mobile-first design with hamburger menu and adaptive grid layouts |
 
 ---
@@ -64,22 +66,22 @@ The system uses two independent AI models working in tandem — a **Random Fores
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                          QuantEdge System                                │
 │                                                                          │
-│  ┌────────────────────┐                  ┌───────────────────────────┐   │
-│  │  React Frontend    │                  │    FastAPI Backend         │   │
+│  ┌────────────────────┐ WebSocket (Protobuf) ┌───────────────────────────┐   │
+│  │  React Frontend    │ ◄──────────────────  │    FastAPI Backend         │   │
 │  │  (Vite + JSX)      │   REST API       │                           │   │
 │  │                    │ ──────────────►  │  ┌──────────┐ ┌────────┐  │   │
 │  │  Hosted on Vercel  │                  │  │ ML Models│ │Data Svc│  │   │
 │  │  (Edge CDN)        │                  │  │ ┌──────┐ │ │yfinance│  │   │
-│  └────────────────────┘                  │  │ │  RF  │ │ │        │  │   │
+│  └────────────────────┘                  │  │ │  RF  │ │ │Screener│  │   │
 │                                          │  │ │Class │ │ └────────┘  │   │
-│  Chart Library:                          │  │ ├──────┤ │             │   │
-│  lightweight-charts v4                   │  │ │  RF  │ │ ┌────────┐  │   │
-│                                          │  │ │ Reg  │ │ │  Neon  │  │   │
-│  Key Components:                         │  │ └──────┘ │ │Postgres│  │   │
-│  • AdvancedChart                         │  └──────────┘ │(Cloud) │  │   │
-│  • Dashboard                             │               └────────┘  │   │
-│  • Mobile Sidebar                        │  Hosted on Render         │   │
-│  • Responsive Grid                       └───────────────────────────┘   │
+│  Key Components:                         │  │ ├──────┤ │             │   │
+│  • AdvancedChart                         │  │ │  RF  │ │ ┌────────┐  │   │
+│  • LivePriceScroller (Odometer)          │  │ │ Reg  │ │ │  Neon  │  │   │
+│  • Multi-Signal Scoring Dashboard        │  │ └──────┘ │ │Postgres│  │   │
+│                                          │  └──────────┘ │(Cloud) │  │   │
+│  Upstream Connections:                   │               └────────┘  │   │
+│  • wss://streamer.finance.yahoo.com      │  Hosted on Render         │   │
+│  • https://www.screener.in               └───────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -90,11 +92,14 @@ The system uses two independent AI models working in tandem — a **Random Fores
 ### Backend
 | Technology | Purpose |
 |---|---|
-| **FastAPI** | High-performance async REST API with auto-generated Swagger docs |
+| **FastAPI + Uvicorn** | High-performance ASGI REST API & WebSocket server |
+| **websockets + Protobuf** | Direct binary stream decoding from Yahoo Finance |
+| **curl_cffi** | TLS fingerprint spoofing (Chrome 110) to bypass bot detection |
+| **BeautifulSoup4** | HTML web scraping for Screener.in fundamental data |
 | **Scikit-Learn** | Random Forest Classifier + Regressor for ML predictions |
 | **Pandas + Pandas-TA** | Data processing, RSI, SMA, and volatility indicator calculation |
-| **yfinance** | Live market fundamentals and historical price ingestion |
-| **SQLAlchemy** | ORM for PostgreSQL database interaction (NullPool for serverless) |
+| **yfinance** | Market fundamentals (`fast_info`) and historical price ingestion |
+| **SQLAlchemy** | ORM for PostgreSQL database interaction (`NullPool` for serverless) |
 | **Joblib** | Compressed model serialization for fast disk I/O |
 
 ### Frontend
@@ -271,14 +276,17 @@ QuantEdge/
 │   │   │   └── train.py           # Model training pipeline
 │   │   ├── routes/
 │   │   │   └── api.py             # All REST API endpoints
+│   │   ├── schemas/
+│   │   │   └── pricing.proto      # Protocol Buffer schema for Yahoo WS
 │   │   ├── services/
-│   │   │   └── data_service.py    # DB queries & yfinance integration
-│   │   └── main.py                # FastAPI app entry point
+│   │   │   └── data_service.py    # DB queries & 4-tier scraping integration
+│   │   ├── main.py                # FastAPI app & Lifespan manager
+│   │   └── ws_manager.py          # WebSocket proxy, reference counting, circuit breaker
 │   ├── historical_data/           # Raw NIFTY 50 CSV files
 │   ├── models/                    # Saved .pkl model files (gitignored)
 │   ├── import_data.py             # One-time DB seeding script
 │   ├── train_all.py               # Bulk model training script
-│   ├── startup.sh                 # Render deployment startup script
+│   ├── startup.sh                 # Render deployment startup script (runs protoc)
 │   ├── Procfile                   # Render process file
 │   ├── .python-version            # Python version pin for Render
 │   └── requirements.txt
