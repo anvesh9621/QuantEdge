@@ -286,11 +286,33 @@ export default function Dashboard() {
   let dayChange = 0
   let dayChangePct = 0
 
-  if (livePrice > 0) {
+  // Determine if Indian stock market is currently open (Mon-Fri, 09:15 to 15:30 IST)
+  const now = new Date();
+  const istTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+  const day = istTime.getDay();
+  const hour = istTime.getHours();
+  const min = istTime.getMinutes();
+  const isMarketOpen = day >= 1 && day <= 5 && 
+                       (hour > 9 || (hour === 9 && min >= 15)) && 
+                       (hour < 15 || (hour === 15 && min < 30));
+
+  if (isMarketOpen && livePrice > 0) {
     displayPrice = livePrice
     dayChange = liveChange || 0
     dayChangePct = liveChangePct || 0
-  } else if (fundamentals && fundamentals.current_price > 0 && fundamentals.previous_close > 0) {
+  } else if (!isMarketOpen && history.length >= 2) {
+    // When market is closed (weekend/night), NEVER use the unofficial post-market ticks 
+    // from Yahoo WebSocket or fast_info. Use the rock-solid official EOD close from history.
+    displayPrice = history[history.length - 1].close
+    let prevClose = displayPrice
+    for (let i = history.length - 2; i >= 0; i--) {
+      if (history[i].time !== history[history.length - 1].time) {
+        prevClose = history[i].close; break;
+      }
+    }
+    dayChange = displayPrice - prevClose
+    dayChangePct = prevClose > 0 ? (dayChange / prevClose) * 100 : 0
+  } else if (isMarketOpen && fundamentals && fundamentals.current_price > 0 && fundamentals.previous_close > 0) {
     displayPrice = fundamentals.current_price
     dayChange = fundamentals.current_price - fundamentals.previous_close
     dayChangePct = (dayChange / fundamentals.previous_close) * 100
