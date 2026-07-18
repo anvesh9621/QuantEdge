@@ -14,6 +14,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://neon.tech/)
 [![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-ML-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+[![Lint](https://github.com/anvesh9621/QuantEdge/actions/workflows/lint.yml/badge.svg)](https://github.com/anvesh9621/QuantEdge/actions/workflows/lint.yml)
 
 </div>
 
