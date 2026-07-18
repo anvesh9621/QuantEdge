@@ -1,7 +1,7 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
 
-export default function PredictionCard({ prediction, loading, stock }) {
+export default function PredictionCard({ prediction, loading }) {
   if (loading || !prediction) {
     return (
       <div className="p-6 rounded-2xl bg-surface border border-slate-700/50 flex flex-col items-center justify-center min-h-[400px] shadow-xl relative overflow-hidden">

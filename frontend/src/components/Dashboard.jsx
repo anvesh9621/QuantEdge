@@ -96,8 +96,12 @@ function AdvancedChart({ data, type, timeframe }) {
     if (timeframe === 'MAX') {
       chartRef.current.timeScale().fitContent()
     } else {
-      const daysStr = timeframe.replace('M', '*30').replace('Y', '*365')
-      const days = eval(daysStr)
+      let days = 365;
+      if (timeframe.includes('M')) {
+        days = parseInt(timeframe.replace('M', '')) * 30;
+      } else if (timeframe.includes('Y')) {
+        days = parseInt(timeframe.replace('Y', '')) * 365;
+      }
 
       const toIndex = clean.length - 1
       const fromIndex = Math.max(0, toIndex - days)
